@@ -140,7 +140,7 @@ REACTIONS      = environ.get('REACTIONS', '❤️ 🔥 🎉 👍 😍').split()
 
 # ── Pics (welcome/force-sub images) ─────────────
 _pics_raw = environ.get('PICS', '')
-PICS           = [p.strip() for p in _pics_raw.split(',') if p.strip()] if _pics_raw else ['https://telegra.ph/file/3945c95f6b4bf29d2e249.jpg']
+PICS           = [p.strip() for p in _pics_raw.split(',') if p.strip()]
 
 # ── Join Request / Force Sub ─────────────────────
 REQUEST_TO_JOIN_MODE = _bool(environ.get('REQUEST_TO_JOIN_MODE'), default=False)
@@ -180,3 +180,6 @@ AUTO_APPROVE_MODE = _bool(environ.get('AUTO_APPROVE_MODE'), default=False)
 # ── AI Spell Check & No Results Message ─────────
 AI_SPELL_CHECK = _bool(environ.get('AI_SPELL_CHECK'), default=False)
 NO_RESULTS_MSG = environ.get('NO_RESULTS_MSG', '')
+
+# ── Alert Messages ───────────────────────────────
+MSG_ALRT = environ.get('MSG_ALRT', '⚠️ This button is not for you!')
