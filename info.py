@@ -39,10 +39,10 @@ MULTIPLE_DATABASE = False
 # ── Channels ────────────────────────────────────
 LOG_CHANNEL          = int(environ.get('LOG_CHANNEL', '0'))
 SUPPORT_CHAT         = environ.get('SUPPORT_CHAT', 'aschat_group')
-SUPPORT_CHAT_ID      = int(environ.get('SUPPORT_CHAT_ID', '0'))
+SUPPORT_CHAT_ID      = int(environ.get('SUPPORT_CHAT_ID', '-1002085088955'))
 CHNL_LNK             = environ.get('CHNL_LNK', 'https://t.me/asbhai_bsr')
 OWNER_LNK            = environ.get('OWNER_LNK', 'https://t.me/asbhai_bsr')
-PUBLIC_FILE_CHANNEL  = environ.get('PUBLIC_FILE_CHANNEL', '')
+PUBLIC_FILE_CHANNEL  = environ.get('PUBLIC_FILE_CHANNEL', '-1002797023499')
 
 # ── Clone System ────────────────────────────────
 CLONE_MODE            = _bool(environ.get('CLONE_MODE'), default=True)
