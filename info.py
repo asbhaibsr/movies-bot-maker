@@ -39,10 +39,10 @@ MULTIPLE_DATABASE = False
 # ── Channels ────────────────────────────────────
 LOG_CHANNEL          = int(environ.get('LOG_CHANNEL', '0'))
 SUPPORT_CHAT         = environ.get('SUPPORT_CHAT', 'aschat_group')
-SUPPORT_CHAT_ID      = int(environ.get('SUPPORT_CHAT_ID', '-1002085088955'))
+SUPPORT_CHAT_ID      = int(environ.get('SUPPORT_CHAT_ID', '0'))
 CHNL_LNK             = environ.get('CHNL_LNK', 'https://t.me/asbhai_bsr')
 OWNER_LNK            = environ.get('OWNER_LNK', 'https://t.me/asbhai_bsr')
-PUBLIC_FILE_CHANNEL  = environ.get('PUBLIC_FILE_CHANNEL', '-1002797023499')
+PUBLIC_FILE_CHANNEL  = environ.get('PUBLIC_FILE_CHANNEL', '')
 
 # ── Clone System ────────────────────────────────
 CLONE_MODE            = _bool(environ.get('CLONE_MODE'), default=True)
@@ -107,3 +107,64 @@ ON_HEROKU      = True if 'DYNO' in environ else False
 # ── Privacy ──────────────────────────────────────
 BOT_NAME     = environ.get('BOT_NAME', 'AsBhai Filter Bot')
 BOT_USERNAME = environ.get('BOT_USERNAME', '')
+
+# ── Filter Bot Settings (Missing vars added) ────
+CUSTOM_FILE_CAPTION = environ.get('CUSTOM_FILE_CAPTION', '')
+BATCH_FILE_CAPTION  = environ.get('BATCH_FILE_CAPTION', '')
+IMDB                = _bool(environ.get('IMDB'), default=True)
+IMDB_TEMPLATE       = environ.get('IMDB_TEMPLATE', '<b>{title}</b>\n\n⭐ Rating: {rating}\n📅 Year: {year}\n🎭 Genres: {genres}')
+MELCOW_NEW_USERS    = _bool(environ.get('MELCOW_NEW_USERS'), default=True)
+BUTTON_MODE         = _bool(environ.get('BUTTON_MODE'), default=False)
+SPELL_CHECK_REPLY   = _bool(environ.get('SPELL_CHECK_REPLY'), default=True)
+PROTECT_CONTENT     = _bool(environ.get('PROTECT_CONTENT'), default=False)
+AUTO_FFILTER        = _bool(environ.get('AUTO_FFILTER'), default=True)
+SHORTLINK_MODE      = _bool(environ.get('SHORTLINK_MODE'), default=False)
+
+# ── Channels & Groups ────────────────────────────
+AUTH_CHANNEL   = environ.get('AUTH_CHANNEL', '')
+AUTH_CHANNEL   = int(AUTH_CHANNEL) if AUTH_CHANNEL and id_pattern.search(AUTH_CHANNEL) else ''
+CHANNELS       = [int(c) for c in environ.get('CHANNELS', '').split() if id_pattern.search(c)]
+REQST_CHANNEL  = environ.get('REQST_CHANNEL', '')
+REQST_CHANNEL  = int(REQST_CHANNEL) if REQST_CHANNEL and id_pattern.search(REQST_CHANNEL) else ''
+GRP_LNK        = environ.get('GRP_LNK', 'https://t.me/aschat_group')
+
+# ── Streaming ────────────────────────────────────
+STREAM_MODE    = _bool(environ.get('STREAM_MODE'), default=False)
+URL            = environ.get('URL', '')  # Base URL for stream links e.g. https://yourserver.com/
+
+# ── Cache ────────────────────────────────────────
+CACHE_TIME     = int(environ.get('CACHE_TIME', '300'))
+
+# ── Reactions ────────────────────────────────────
+REACTIONS      = environ.get('REACTIONS', '❤️ 🔥 🎉 👍 😍').split()
+
+# ── Pics (welcome/force-sub images) ─────────────
+_pics_raw = environ.get('PICS', '')
+PICS           = [p.strip() for p in _pics_raw.split(',') if p.strip()] if _pics_raw else ['https://telegra.ph/file/3945c95f6b4bf29d2e249.jpg']
+
+# ── Join Request / Force Sub ─────────────────────
+REQUEST_TO_JOIN_MODE = _bool(environ.get('REQUEST_TO_JOIN_MODE'), default=False)
+TRY_AGAIN_BTN        = _bool(environ.get('TRY_AGAIN_BTN'), default=True)
+
+# ── Referral & Premium ───────────────────────────
+REFERAL_COUNT         = int(environ.get('REFERAL_COUNT', '5'))
+REFERAL_PREMEIUM_TIME = int(environ.get('REFERAL_PREMEIUM_TIME', '30'))
+PAYMENT_TEXT          = environ.get('PAYMENT_TEXT', 'Contact admin for premium access.')
+
+# ── File Store / Gen Link ────────────────────────
+FILE_STORE_CHANNEL = [int(c) for c in environ.get('FILE_STORE_CHANNEL', '').split() if id_pattern.search(c)]
+PUBLIC_FILE_STORE  = _bool(environ.get('PUBLIC_FILE_STORE'), default=False)
+
+# ── Auto Delete Channels ─────────────────────────
+DELETE_CHANNELS    = [int(c) for c in environ.get('DELETE_CHANNELS', '').split() if id_pattern.search(c)]
+
+# ── Index Channel ────────────────────────────────
+INDEX_REQ_CHANNEL  = environ.get('INDEX_REQ_CHANNEL', '')
+INDEX_REQ_CHANNEL  = int(INDEX_REQ_CHANNEL) if INDEX_REQ_CHANNEL and id_pattern.search(INDEX_REQ_CHANNEL) else LOG_CHANNEL
+
+# ── Blogger / Google Sheet (optional) ───────────
+GOOGLE_SHEET_CSV_URL = environ.get('GOOGLE_SHEET_CSV_URL', '')
+BLOGGER_BASE_URL     = environ.get('BLOGGER_BASE_URL', '')
+
+# ── Web Server ──────────────────────────────────
+PORT = int(environ.get('PORT', '8080'))
