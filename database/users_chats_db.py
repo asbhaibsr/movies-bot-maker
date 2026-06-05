@@ -134,6 +134,16 @@ class Database:
 
     async def get_bot(self, bot_id):
         bot_data = await self.bot.find_one({"bot_id": bot_id})
+        if not bot_data:
+            bot_data = {
+                'bot_id': bot_id,
+                'bot_token': None,
+                'user_id': None,
+                'url': None,
+                'api': None,
+                'tutorial': None,
+                'update_channel_link': None
+            }
         return bot_data
             
     async def update_bot(self, bot_id, bot_data):
