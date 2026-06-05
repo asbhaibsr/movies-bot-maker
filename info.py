@@ -168,3 +168,15 @@ BLOGGER_BASE_URL     = environ.get('BLOGGER_BASE_URL', '')
 
 # ── Web Server ──────────────────────────────────
 PORT = int(environ.get('PORT', '8080'))
+
+# ── Bot Session & Client Settings ──────────────
+SESSION         = environ.get('SESSION', 'AsBhaiBot')
+SLEEP_THRESHOLD = int(environ.get('SLEEP_THRESHOLD', '60'))
+PING_INTERVAL   = int(environ.get('PING_INTERVAL', '800'))
+
+# ── Auto Approve ─────────────────────────────── 
+AUTO_APPROVE_MODE = _bool(environ.get('AUTO_APPROVE_MODE'), default=False)
+
+# ── AI Spell Check & No Results Message ─────────
+AI_SPELL_CHECK = _bool(environ.get('AI_SPELL_CHECK'), default=False)
+NO_RESULTS_MSG = environ.get('NO_RESULTS_MSG', '')
