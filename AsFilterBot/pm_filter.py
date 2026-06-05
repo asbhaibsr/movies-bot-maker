@@ -32,7 +32,19 @@ async def give_filter(client, message):
     try:
         me = await client.get_me()
         if not await is_active(me.id):
-            return  # Expired bot silently ignore karo groups mein
+            # Expiry message with 2 buttons
+            btn = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/AsFilterBot"),
+                InlineKeyboardButton("🔍 Search Here", url="https://t.me/AsFilterBot")
+            ]])
+            await message.reply_text(
+                f"<b>⚠️ Subscription Expire Ho Gaya!</b>\n\n"
+                f"Is bot ka subscription khatam ho gaya hai.\n"
+                f"Owner se renew karwao ya neeche diye button se main bot use karo! 👇",
+                parse_mode="html",
+                reply_markup=btn
+            )
+            return
     except Exception:
         pass
     ai_search = True
@@ -51,11 +63,16 @@ async def pm_text(bot, message):
         if not await is_active(me.id):
             cd = await _main_db.get_bot(me.id)
             owner_id = cd.get("user_id") if cd else None
+            btn = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/AsFilterBot"),
+                InlineKeyboardButton("🔍 Search Here", url="https://t.me/AsFilterBot")
+            ]])
             await message.reply_text(
-                "<b>⚠️ Bot ka subscription expire ho gaya!</b>\n\n"
-                "Owner se contact karo ya:\n"
-                f"Renew karne ke liye hamara bot use karo 👉 @{(await bot.get_me()).username}",
-                parse_mode="html"
+                "<b>⚠️ Subscription Expire Ho Gaya!</b>\n\n"
+                "Is bot ka subscription khatam ho gaya.\n"
+                "Owner se renew karwao ya main bot use karo! 👇",
+                parse_mode="html",
+                reply_markup=btn
             )
             return
     except Exception:
