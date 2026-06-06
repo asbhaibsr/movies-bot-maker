@@ -1,39 +1,69 @@
-# 🤖 AsBhai Auto Filter Bot
+# 🤖 Create AutoFilter Robot — Movie Bot Maker
 
-Apna khud ka Auto Filter Bot banao — FREE!
+> **@createautofilterRobot** — BotFather jaisa bot jo apka khud ka Movie Bot banata hai!
 
-**Developer:** @asbhaibsr | **Support:** @aschat_group
+**Support:** @aschat_group | **Updates:** @asbhai_bsr
 
-## Features
-- Auto Filter (Group + PM)
-- Clone Bot System (30 days free)
-- Premium & Referral
-- Shortlink Verify
-- Force Subscribe
-- AI Chat (/chat)
-- Smart Queue (heavy load handle)
-- Subscription Management
+---
 
-## Koyeb Deploy
+## 📋 Main Bot Commands
 
-1. Ye repo fork karo GitHub pe
-2. Koyeb → New Service → GitHub → repo select
-3. `.env.example` dekh ke env variables add karo
-4. Deploy!
+### 👤 Users ke liye
+| Command | Kaam |
+|---|---|
+| `/start` | Welcome message |
+| `/createbot` | Naya movie bot banao |
+| `/mybot` | Apne bots dekho |
+| `/delbot` | Bot delete karo |
+| `/manage` | Bot settings manage karo |
 
-## Important Env Variables
-- `API_ID`, `API_HASH`, `BOT_TOKEN` — must hai
-- `DATABASE_URI`, `FILE_DB_URI` — 2 MongoDB clusters
-- `LOG_CHANNEL` — logs channel ID
-- `ADMINS` — tera Telegram ID
+### 🔑 Admin Commands
+| Command | Kaam |
+|---|---|
+| `/activate bot_id months` | Clone bot subscription activate karo |
+| `/sublist` | Saare active subscriptions ki list |
+| `/expiringbots` | Jaldi expire hone wale bots |
+| `/expirycheck` | Sabhi subscriptions ka expiry status |
+| `/botbroadcast` | Saare clone bots ko message bhejo |
+| `/broadcast` | Main bot users ko message bhejo |
+| `/stats` | Bot stats |
+| `/logs` | Platform logs |
 
-## Admin Commands
-- `/activate bot_id months` — Clone subscription on karo
-- `/botbroadcast` — Saare clones ko message
-- `/sublist` — All subscriptions
-- `/stats` — Bot stats
-- `/maintenance on/off` — Maintenance mode
+---
 
-## Privacy & Legal
-Ye bot sirf filter/search ke liye hai.
-Copyright content use karna users ki zimmedari hai.
+## ⚙️ /manage — Bot Settings Panel
+- 📝 **Welcome Message** — Custom start message set karo
+- 🖼️ **Welcome Photo** — JPG link ya photo upload
+- 🔘 **Manage Buttons** — Custom inline buttons add karo
+- 📢 **Update Channel** — Apna channel link set karo
+- 📊 **Subscription** — Plan aur expiry dekho
+
+---
+
+## 🎬 Clone Bot Features (Movie Bot)
+- `/start` — 3 second @asbhai_bsr update button + welcome
+- `/search /imdb` — IMDB movie search
+- `/request` — Movie request
+- `/filter /add` — Group filters
+- `/settings` — Bot/group settings
+- `/index` — Channel file index
+- `/plan /myplan` — Premium plans
+- `/shortlink` — Shortlink verify
+- `/chat /ai` — AI chat
+- `/broadcast` — Broadcast to users
+- `/ban /unban` — User management
+- Aur bahut kuch...
+
+---
+
+## 🚀 Deploy
+
+### Heroku
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
+
+### Vars (env)
+`.env.example` file dekho
+
+---
+
+*Developer: @asbhaibsr*
