@@ -1,18 +1,20 @@
 # # # 
 class script(object):
     START_TXT = """
-<b>👋 Welcome {},</b>
+<b>👋 Hello {},</b>
 
-<b>🚀 I am a powerful and super fast Auto-Filter Bot, made for your groups!</b>
+🤖 Main hoon <b>Create AutoFilter Bot!</b>
+Apna khud ka Movie Bot banao — bilkul free mein!
 
-✨ Just type the **Movie, Series, or Anime** name you want.
-I will automatically filter the file for you instantly!
-
-👥 I work perfectly in **Groups** and in **Private Chats** too.
+👇 /createbot se shuru karo!
 """
-    CLONE_START_TXT = """<b><blockquote>ʜᴇʟʟᴏ {}, ᴍʏ ɴᴀᴍᴇ <a href=https://t.me/{}>{}</a></blockquote>
-    
-ɪ ᴀᴍ ᴀᴅᴠᴀɴᴄᴇ ᴀɴᴅ ᴘᴏᴡᴇʀғᴜʟʟ ᴀᴜᴛᴏғɪʟᴛᴇʀ ʙᴏᴛ ᴡɪᴛʜ ᴀᴍᴀᴢɪɴɢ ғᴇᴀᴛᴜʀᴇs ᴊᴜsᴛ ᴛʏᴘᴇ ᴡʜᴀᴛ ʏᴏᴜ ᴡᴀɴᴛ ᴛʜᴇɴ sᴇᴇ ᴍʏ ᴘᴏᴡᴇʀ 💘</b>"""
+    CLONE_START_TXT = """<b>👋 Hello {},
+
+🤖 Main hoon <a href=https://t.me/{}>{}</a>
+
+🎬 Movie name type karo — main apne channel se dhundh ke dunga!
+
+💡 Tip: Seedha group mein movie name likho!</b>"""
     
     HELP_TXT = """<b>ʜᴇʟʟᴏ {}
 ʜᴇʀᴇ ɪs ᴀʟʟ ᴍʏ ᴜsᴇғᴜʟʟ ғᴇᴀᴛᴜʀᴇs.</b>"""
