@@ -16,20 +16,20 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 
-# ── 20 Second Join Button ──────────────────────────────────────
-async def _send_join_btn_then_delete(client, chat_id, delay=20):
-    """20 second ke liye join button bhejo fir delete karo"""
+# ── 3 Second Update Channel Button (Auto Delete) ────────────
+async def _send_update_btn_3sec(client, chat_id):
+    """Start pe sirf 3 second ke liye @asbhai_bsr channel button dikhao, phir delete karo"""
     try:
         btn = InlineKeyboardMarkup([[
-            InlineKeyboardButton("📢 Join @asbhai_bsr", url="https://t.me/asbhai_bsr")
+            InlineKeyboardButton("📢 Updates: @asbhai_bsr", url="https://t.me/asbhai_bsr")
         ]])
         m = await client.send_message(
             chat_id,
-            "<b>📢 Join our channel for bot updates!</b>",
+            "<b>📢 Hamara update channel join karo!</b>",
             reply_markup=btn,
             parse_mode=enums.ParseMode.HTML
         )
-        await asyncio.sleep(delay)
+        await asyncio.sleep(3)
         try:
             await m.delete()
         except Exception:
@@ -43,36 +43,58 @@ async def start(client, message):
     me = await client.get_me()
     cd = await db.get_bot(me.id)
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
+        # 3 second update channel button
+        asyncio.create_task(_send_update_btn_3sec(client, message.chat.id))
         buttons = [[
             InlineKeyboardButton('⤬ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ⤬', url=f'http://t.me/{me.username}?startgroup=true')
         ]]
-        if cd["update_channel_link"] != None:
-            up = cd["update_channel_link"]
-            buttons.append([InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=up)])
+        if cd.get("update_channel_link"):
+            buttons.append([InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=cd["update_channel_link"])])
         reply_markup = InlineKeyboardMarkup(buttons)
         await message.reply(script.CLONE_START_TXT.format(message.from_user.mention if message.from_user else message.chat.title, me.username, me.first_name), reply_markup=reply_markup)
         return 
     if not await clonedb.is_user_exist(me.id, message.from_user.id):
         await clonedb.add_user(me.id, message.from_user.id)
     if len(message.command) != 2:
+        # 3 second update channel button (background task)
+        asyncio.create_task(_send_update_btn_3sec(client, message.chat.id))
+
+        # Buttons build karo
         buttons = [[
             InlineKeyboardButton('⤬ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ⤬', url=f'http://t.me/{me.username}?startgroup=true')
         ],[
             InlineKeyboardButton('🕵️ ʜᴇʟᴘ', callback_data='help'),
             InlineKeyboardButton('🔍 ᴀʙᴏᴜᴛ', callback_data='about')
         ]]
-        if cd["update_channel_link"] != None:
-            up = cd["update_channel_link"]
-            buttons.append([InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=up)])
+        if cd.get("update_channel_link"):
+            buttons.append([InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=cd["update_channel_link"])])
+        # Custom buttons from manage panel
+        for btn in (cd.get("start_buttons") or []):
+            try:
+                buttons.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
+            except:
+                pass
         reply_markup = InlineKeyboardMarkup(buttons)
-        m=await message.reply_sticker("CAACAgUAAxkBAAEKVaxlCWGs1Ri6ti45xliLiUeweCnu4AACBAADwSQxMYnlHW4Ls8gQMAQ") 
-        await asyncio.sleep(1)
-        await m.delete()
-        await message.reply_text(
-            text=script.CLONE_START_TXT.format(message.from_user.mention, me.username, me.first_name),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
+
+        # Custom start message
+        start_text = cd.get("start_message") or script.CLONE_START_TXT.format(
+            message.from_user.mention, me.username, me.first_name
         )
+        # Custom photo
+        start_photo = cd.get("start_photo")
+        if start_photo:
+            await message.reply_photo(
+                photo=start_photo,
+                caption=start_text,
+                reply_markup=reply_markup,
+                parse_mode=enums.ParseMode.HTML
+            )
+        else:
+            await message.reply_text(
+                text=start_text,
+                reply_markup=reply_markup,
+                parse_mode=enums.ParseMode.HTML
+            )
         return
     data = message.command[1]
     try:
