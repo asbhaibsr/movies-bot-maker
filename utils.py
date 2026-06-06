@@ -118,7 +118,8 @@ class temp(object):
     BANNED_CHATS = []
     ME = None
     BOT = None
-    CURRENT=int(os.environ.get("SKIP", 2))
+    BOTS = []           # Running clone bots list
+    CURRENT = int(os.environ.get("SKIP", 2))
     CANCEL = False
     MELCOW = {}
     U_NAME = None
