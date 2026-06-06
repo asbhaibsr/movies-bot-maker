@@ -106,15 +106,20 @@ class Database:
         count = await self.col.count_documents({})
         return count
 
-    async def add_clone_bot(self, bot_id, user_id, bot_token):
+    async def add_clone_bot(self, bot_id, user_id, bot_token, bot_username=""):
         settings = {
             'bot_id': bot_id,
             'bot_token': bot_token,
             'user_id': user_id,
+            'bot_username': bot_username,
             'url': None,
             'api': None,
             'tutorial': None,
-            'update_channel_link': None
+            'update_channel_link': None,
+            'start_message': None,
+            'start_photo': None,
+            'start_buttons': [],
+            'fsub_channel': None,
         }
         await self.bot.insert_one(settings)
 
@@ -139,10 +144,15 @@ class Database:
                 'bot_id': bot_id,
                 'bot_token': None,
                 'user_id': None,
+                'bot_username': "",
                 'url': None,
                 'api': None,
                 'tutorial': None,
-                'update_channel_link': None
+                'update_channel_link': None,
+                'start_message': None,
+                'start_photo': None,
+                'start_buttons': [],
+                'fsub_channel': None,
             }
         return bot_data
             
@@ -151,6 +161,9 @@ class Database:
     
     async def get_all_bots(self):
         return self.bot.find({})
+    
+    async def count_all_bots(self):
+        return await self.bot.count_documents({})
         
     async def remove_ban(self, id):
         ban_status = dict(
