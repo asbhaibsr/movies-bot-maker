@@ -34,8 +34,8 @@ async def give_filter(client, message):
         if not await is_active(me.id):
             # Expiry message with 2 buttons
             btn = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/AsFilterBot"),
-                InlineKeyboardButton("🔍 Search Here", url="https://t.me/AsFilterBot")
+                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/createautofilterRobot"),
+                InlineKeyboardButton("🔍 Search Here", url="https://t.me/createautofilterRobot")
             ]])
             await message.reply_text(
                 f"<b>⚠️ Subscription Expire Ho Gaya!</b>\n\n"
@@ -64,8 +64,8 @@ async def pm_text(bot, message):
             cd = await _main_db.get_bot(me.id)
             owner_id = cd.get("user_id") if cd else None
             btn = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/AsFilterBot"),
-                InlineKeyboardButton("🔍 Search Here", url="https://t.me/AsFilterBot")
+                InlineKeyboardButton("🤖 Main Bot", url="https://t.me/createautofilterRobot"),
+                InlineKeyboardButton("🔍 Search Here", url="https://t.me/createautofilterRobot")
             ]])
             await message.reply_text(
                 "<b>⚠️ Subscription Expire Ho Gaya!</b>\n\n"
