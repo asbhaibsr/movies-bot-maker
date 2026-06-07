@@ -3,7 +3,7 @@
 import os, string, logging, random, asyncio, time, datetime, re, sys, json, base64
 from Script import script
 from pyrogram import Client, filters, enums
-from pyrogram.errors import ChatAdminRequired, FloodWait
+from pyrogram.errors import ChatAdminRequired, FloodWait, ListenerTimeout
 from pyrogram.types import *
 from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files
 from database.users_chats_db import db
@@ -208,46 +208,103 @@ async def start(client, message):
         reply_markup=InlineKeyboardMarkup(button)
     else:
         reply_markup=None
-    k = await temp.BOT.send_cached_media(chat_id=PUBLIC_FILE_CHANNEL, file_id=file_id)
-    vj = await client.get_messages(PUBLIC_FILE_CHANNEL, k.id)
-    m = getattr(vj, vj.media.value)
-    file_id = m.file_id
-    msg = await client.send_cached_media(
-        chat_id=message.from_user.id,
-        file_id=file_id,
-        caption=f_caption,
-        protect_content=False,
-        reply_markup=reply_markup
-    )
-    k = await msg.reply("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie File/Video will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this File/Video to your Saved Messages and Start Download there</i></b>",quote=True)
-    await asyncio.sleep(600)
-    await msg.delete()
-    await k.edit_text("<b>Your File/Video is successfully deleted!!!</b>")
+    if not PUBLIC_FILE_CHANNEL:
+        return await client.send_message(
+            message.from_user.id,
+            "<b>❌ Bot owner ne PUBLIC_FILE_CHANNEL set nahi kiya!\n\n"
+            "Owner se contact karo.</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    try:
+        k = await temp.BOT.send_cached_media(chat_id=PUBLIC_FILE_CHANNEL, file_id=file_id)
+        vj = await client.get_messages(PUBLIC_FILE_CHANNEL, k.id)
+        m = getattr(vj, vj.media.value)
+        file_id = m.file_id
+        me_data = await db.get_bot((await client.get_me()).id)
+        protect = me_data.get("protect_content", False)
+        msg = await client.send_cached_media(
+            chat_id=message.from_user.id,
+            file_id=file_id,
+            caption=f_caption,
+            protect_content=protect,
+            reply_markup=reply_markup
+        )
+        auto_del = me_data.get("auto_delete", 600)
+        if auto_del and auto_del > 0:
+            k2 = await msg.reply(
+                f"<b>⚠️ Ye file {auto_del//60} min mein delete ho jayegi.\n"
+                f"Save Messages mein forward kar lo!</b>",
+                quote=True, parse_mode=enums.ParseMode.HTML
+            )
+            await asyncio.sleep(auto_del)
+            try:
+                await msg.delete()
+                await k2.edit_text("<b>✅ File delete ho gayi.</b>", parse_mode=enums.ParseMode.HTML)
+            except:
+                pass
+    except Exception as e:
+        await client.send_message(message.from_user.id, f"<b>❌ File send error: {e}</b>", parse_mode=enums.ParseMode.HTML)
     return   
   
 @Client.on_message(filters.command("settings") & filters.private)
 async def settings(client, message):
     me = await client.get_me()
-    owner = await db.get_bot(me.id)
-    if owner["user_id"] != message.from_user.id:
-        return
-    url = await client.ask(message.chat.id, "<b>Now Send Me Your Shortlink Site Domain Or Url Without https://</b>")
-    api = await client.ask(message.chat.id, "<b>Now Send Your Api</b>")
-    try:
-        shortzy = Shortzy(api_key=api.text, base_site=url.text)
-        link = 'https://t.me/asbhaibsr'
-        await shortzy.convert(link)
-    except Exception as e:
-        await message.reply(f"**Error In Converting Link**\n\n<code>{e}</code>\n\n**Start The Process Again By - /settings**", reply_markup=InlineKeyboardMarkup(btn))
-        return
-    tutorial = await client.ask(message.chat.id, "<b>Now Send Me Your How To Open Link means Tutorial Link.</b>")
-    if not tutorial.text.startswith(('https://', 'http://')):
-        await message.reply("**Invalid Link. Start The Process Again By - /settings**")
-        return 
-    link = await client.ask(message.chat.id, "<b>Now Send Me Your Update Channel Link Which Is Shown In Your Start Button And Below File Button.</b>")
-    if not link.text.startswith(('https://', 'http://')):
-        await message.reply("**Invalid Link. Start The Process Again By - /settings**")
-        return 
+    bot_data = await db.get_bot(me.id)
+    owner_id = bot_data.get("user_id")
+    user_id  = message.from_user.id
+    # Clone owner ya main admin
+    if user_id != owner_id and user_id not in ADMINS:
+        return await message.reply("<b>❌ Ye command sirf bot owner ke liye hai!</b>", parse_mode=enums.ParseMode.HTML)
+
+    # Current settings
+    pm_search  = bot_data.get("pm_search", True)
+    imdb_on    = bot_data.get("imdb_on", True)
+    protect    = bot_data.get("protect_content", False)
+    auto_del   = bot_data.get("auto_delete", 600)
+    max_btns   = bot_data.get("max_results", 10)
+    stream_on  = bot_data.get("stream_mode", False)
+    shortlink  = bot_data.get("is_shortlink", False)
+    sl_url     = bot_data.get("shortlink_url") or "Not set"
+    sl_time    = bot_data.get("shortlink_verify_time", 0)
+
+    pm_icon  = "✅" if pm_search else "❌"
+    imdb_icon= "✅" if imdb_on else "❌"
+    prot_icon= "✅" if protect else "❌"
+    sl_icon  = "✅" if shortlink else "❌"
+    st_icon  = "✅" if stream_on else "❌"
+    del_txt  = f"{auto_del//60} min" if auto_del else "Off"
+
+    text = (
+        f"<b>⚙️ Bot Settings — @{me.username}</b>\n\n"
+        f"🔍 PM Search: {pm_icon}\n"
+        f"🎬 IMDB Info: {imdb_icon}\n"
+        f"🔒 Protect Content: {prot_icon}\n"
+        f"🗑️ Auto Delete: {del_txt}\n"
+        f"🔢 Max Results: {max_btns}\n"
+        f"📺 Stream Mode: {st_icon}\n"
+        f"🔗 Shortlink: {sl_icon} ({sl_url[:30]})\n"
+        f"⏱️ Verify Time: {sl_time}h\n"
+    )
+    btns = [
+        [
+            InlineKeyboardButton(f"{pm_icon} PM Search", callback_data="toggle_pm_search"),
+            InlineKeyboardButton(f"{imdb_icon} IMDB", callback_data="toggle_imdb"),
+        ],
+        [
+            InlineKeyboardButton(f"{prot_icon} Protect", callback_data="toggle_protect"),
+            InlineKeyboardButton(f"{st_icon} Stream", callback_data="toggle_stream"),
+        ],
+        [
+            InlineKeyboardButton(f"{sl_icon} Shortlink", callback_data="toggle_shortlink"),
+            InlineKeyboardButton("🔗 Set URL+API", callback_data="set_shortlink_settings"),
+        ],
+        [
+            InlineKeyboardButton("⏱️ Verify Time", callback_data="set_verify_time"),
+            InlineKeyboardButton(f"🔢 Max Btns ({max_btns})", callback_data="set_max_btns"),
+        ],
+        [InlineKeyboardButton("🗑️ Auto Delete Time", callback_data="set_auto_del")],
+    ]
+    await message.reply(text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=enums.ParseMode.HTML)
     data = {
         'url': url.text,
         'api': api.text,
@@ -1008,3 +1065,4 @@ async def channel_cmd(client, message: Message):
 @Client.on_message(filters.command("cancel") & filters.incoming)
 async def cancel_cmd(client, message: Message):
     await message.reply("<b>❌ Process cancel kar diya.</b>", parse_mode=enums.ParseMode.HTML)
+
