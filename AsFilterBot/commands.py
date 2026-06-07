@@ -686,7 +686,8 @@ async def set_template_cmd(client, message: Message):
             parse_mode=enums.ParseMode.HTML
         )
     try:
-        await db.update_settings(message.chat.id, {"template": template})
+        from utils import save_group_settings
+        await save_group_settings(message.chat.id, "template", template)
         await message.reply(f"<b>✅ Template set ho gaya!</b>\n<code>{template}</code>", parse_mode=enums.ParseMode.HTML)
     except Exception as e:
         await message.reply(f"<b>❌ Error: {e}</b>", parse_mode=enums.ParseMode.HTML)
@@ -868,7 +869,12 @@ async def shortlink_set_cmd(client, message: Message):
             parse_mode=enums.ParseMode.HTML
         )
     url, api = args[1], args[2]
-    await db.update_settings(message.chat.id, {"shortlink_url": url, "shortlink_api": api})
+    try:
+        from utils import save_group_settings
+        await save_group_settings(message.chat.id, "shortlink_url", url)
+        await save_group_settings(message.chat.id, "shortlink_api", api)
+    except Exception as e:
+        pass
     await message.reply(f"<b>✅ Shortlink set!\nURL: {url}\nAPI: {api}</b>", parse_mode=enums.ParseMode.HTML)
 
 
@@ -876,16 +882,18 @@ async def shortlink_set_cmd(client, message: Message):
 async def shortlink_on_cmd(client, message: Message):
     if message.from_user.id not in ADMINS:
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
-    await db.update_settings(message.chat.id, {"is_shortlink": True})
-    await message.reply("<b>✅ Shortlink ON kar diya!</b>", parse_mode=enums.ParseMode.HTML)
+    from utils import save_group_settings
+    await save_group_settings(message.chat.id, "is_shortlink", True)
+    return await message.reply("<b>✅ Shortlink ON kar diya!</b>", parse_mode=enums.ParseMode.HTML)
 
 
 @Client.on_message(filters.command("setshortlinkoff") & filters.incoming)
 async def shortlink_off_cmd(client, message: Message):
     if message.from_user.id not in ADMINS:
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
-    await db.update_settings(message.chat.id, {"is_shortlink": False})
-    await message.reply("<b>✅ Shortlink OFF kar diya!</b>", parse_mode=enums.ParseMode.HTML)
+    from utils import save_group_settings
+    await save_group_settings(message.chat.id, "is_shortlink", False)
+    return await message.reply("<b>✅ Shortlink OFF kar diya!</b>", parse_mode=enums.ParseMode.HTML)
 
 
 @Client.on_message(filters.command("shortlink_info") & filters.incoming)
@@ -908,16 +916,18 @@ async def set_tutorial_cmd(client, message: Message):
     url = " ".join(message.command[1:]) if len(message.command) > 1 else ""
     if not url:
         return await message.reply("<b>Usage:</b> <code>/set_tutorial URL</code>", parse_mode=enums.ParseMode.HTML)
-    await db.update_settings(message.chat.id, {"tutorial": url})
-    await message.reply(f"<b>✅ Tutorial link set!\n{url}</b>", parse_mode=enums.ParseMode.HTML)
+    from utils import save_group_settings
+    await save_group_settings(message.chat.id, "tutorial", url)
+    return await message.reply(f"<b>✅ Tutorial link set!\n{url}</b>", parse_mode=enums.ParseMode.HTML)
 
 
 @Client.on_message(filters.command("remove_tutorial") & filters.incoming)
 async def remove_tutorial_cmd(client, message: Message):
     if message.from_user.id not in ADMINS:
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
-    await db.update_settings(message.chat.id, {"tutorial": None})
-    await message.reply("<b>✅ Tutorial link hata diya!</b>", parse_mode=enums.ParseMode.HTML)
+    from utils import save_group_settings
+    await save_group_settings(message.chat.id, "tutorial", None)
+    return await message.reply("<b>✅ Tutorial link hata diya!</b>", parse_mode=enums.ParseMode.HTML)
 
 
 # ── /fsub /nofsub ─────────────────────────────────────
