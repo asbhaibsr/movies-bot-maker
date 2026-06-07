@@ -1,9 +1,10 @@
 # ════════════════════════════════════════════════════════════
-#   Main Bot — @createautofilterRobot
-#   Creates Movie Bots (BotFather Style)
+#   @createautofilterRobot — Main Bot
+#   BotFather Style Movie Bot Maker
 # ════════════════════════════════════════════════════════════
 
-import sys, glob, importlib, logging, logging.config, pytz, asyncio
+import sys, glob, importlib, logging, logging.config
+import pytz, asyncio
 from pathlib import Path
 
 logging.config.fileConfig('logging.conf')
@@ -32,70 +33,85 @@ loop = asyncio.get_event_loop()
 
 async def start():
     print('\n')
-    print('🚀 Starting @createautofilterRobot...')
+    print('━' * 40)
+    print('🤖 @createautofilterRobot starting...')
+    print('━' * 40)
 
-    bot_info = await AsBhaiBot.get_me()
     await initialize_clients()
 
+    # Plugins load karo
+    loaded = 0
     for name in files:
         with open(name) as a:
-            patt = Path(a.name)
+            patt        = Path(a.name)
             plugin_name = patt.stem.replace(".py", "")
             plugins_dir = Path(f"plugins/{plugin_name}.py")
-            import_path = "plugins.{}".format(plugin_name)
-            spec = importlib.util.spec_from_file_location(import_path, plugins_dir)
-            load = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(load)
-            sys.modules["plugins." + plugin_name] = load
-            print("Module Loaded => " + plugin_name)
+            import_path = f"plugins.{plugin_name}"
+            try:
+                spec = importlib.util.spec_from_file_location(import_path, plugins_dir)
+                load = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(load)
+                sys.modules[import_path] = load
+                loaded += 1
+                print(f"  ✅ {plugin_name}")
+            except Exception as e:
+                print(f"  ❌ {plugin_name}: {e}")
+
+    print(f"\n📦 {loaded} plugins loaded\n")
 
     if ON_HEROKU:
         asyncio.create_task(ping_server())
 
+    # Banned users/chats cache
     b_users, b_chats = await db.get_banned()
     temp.BANNED_USERS = b_users
     temp.BANNED_CHATS = b_chats
     temp.BOTS = []
 
-    me = await AsBhaiBot.get_me()
-    temp.BOT = AsBhaiBot
-    temp.ME = me.id
+    # Bot info set karo
+    me        = await AsBhaiBot.get_me()
+    temp.BOT  = AsBhaiBot
+    temp.ME   = me.id
     temp.U_NAME = me.username
     temp.B_NAME = me.first_name
 
-    logging.info(script.LOGO)
-    tz = pytz.timezone('Asia/Kolkata')
+    tz   = pytz.timezone('Asia/Kolkata')
+    now  = datetime.now(tz)
     today = date.today()
-    now = datetime.now(tz)
-    time = now.strftime("%H:%M:%S %p")
+    time  = now.strftime("%H:%M:%S")
 
     try:
         await AsBhaiBot.send_message(
-            chat_id=LOG_CHANNEL,
-            text=f"<b>🤖 Bot Started!\nTime: {today} {time}</b>"
+            LOG_CHANNEL,
+            f"<b>✅ Bot Started!\n"
+            f"🤖 @{me.username}\n"
+            f"📅 {today} {time} IST</b>"
         )
-    except:
-        print("Make Your Bot Admin In Log Channel")
+    except Exception as e:
+        print(f"LOG_CHANNEL error: {e}")
 
-    # Start expiry background task
+    # Expiry background task
     try:
         from plugins.clone_expiry import start_expiry_check
-        await start_expiry_check(AsBhaiBot)
+        asyncio.create_task(start_expiry_check(AsBhaiBot))
+        print("⏰ Expiry check task started")
     except Exception as e:
         print(f"Expiry task error: {e}")
 
-    # Saare clone bots restart karo
+    # Clone bots restart
     if CLONE_MODE:
-        print("🔄 Restarting All Clone Bots...")
+        print("\n🔄 Restarting clone bots...")
         await restart_bots()
-        print(f"✅ {len(temp.BOTS)} Clone Bots Running.")
 
-    # Web server
+    # Web server start
     app = web.AppRunner(await web_server())
     await app.setup()
     await web.TCPSite(app, "0.0.0.0", PORT).start()
 
-    print(f"\n✅ @{me.username} is LIVE!\n")
+    print(f"\n{'━'*40}")
+    print(f"✅ @{me.username} is LIVE on port {PORT}!")
+    print(f"{'━'*40}\n")
+
     await idle()
 
 
