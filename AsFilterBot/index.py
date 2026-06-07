@@ -59,7 +59,7 @@ async def send_for_index(bot, message):
         last_msg_id = vj.forward_from_message_id
         chat_id = vj.forward_from_chat.username or vj.forward_from_chat.id
     elif vj.text:
-        regex = re.compile("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
+        regex = re.compile(r"(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
         match = regex.match(vj.text)
         if not match:
             return await vj.reply('Invalid link\n\nTry again by /index')
@@ -110,15 +110,31 @@ async def send_for_index(bot, message):
         InlineKeyboardButton('Reject Index', callback_data=f'index#reject#{chat_id}#{message.id}#{message.from_user.id}'),
     ]]
     reply_markup = InlineKeyboardMarkup(buttons)
-    await bot.send_message(
-        LOG_CHANNEL,
-        f'#IndexRequest\n\nBy : {message.from_user.mention} (<code>{message.from_user.id}</code>)\nChat ID/ Username - <code> {chat_id}</code>\nLast Message ID - <code>{last_msg_id}</code>\nInviteLink - {link}',
-        reply_markup=reply_markup
-    )
-    await message.reply('ThankYou For the Contribution, Wait For My Moderators to verify the files.')
+    # Clone owner ke PM mein send karo
+    me = await bot.get_me()
+    bot_data = await db.get_bot(me.id)
+    owner_id  = bot_data.get("user_id")
+    
+    try:
+        await bot.send_message(
+            owner_id,
+            f'<b>#IndexRequest</b>\n\n'
+            f'By: {message.from_user.mention} (<code>{message.from_user.id}</code>)\n'
+            f'Chat: <code>{chat_id}</code>\n'
+            f'Last Msg ID: <code>{last_msg_id}</code>\n'
+            f'Link: {link}',
+            reply_markup=reply_markup,
+            parse_mode=enums.ParseMode.HTML
+        )
+        await message.reply(
+            '<b>✅ Index request bhej diya!\nBot owner se approve karwao.</b>',
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception as e:
+        await message.reply(f'<b>❌ Request send nahi hui: {e}\nBot owner se directly contact karo.</b>', parse_mode=enums.ParseMode.HTML)
 
 
-@Client.on_message(filters.command('setskip') & filters.user(ADMINS))
+@Client.on_message(filters.command('setskip') & filters.incoming)
 async def set_skip_number(bot, message):
     if ' ' in message.text:
         _, skip = message.text.split(" ")
