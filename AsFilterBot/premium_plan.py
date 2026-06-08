@@ -97,6 +97,7 @@ def _plan_buttons(idx):
     ])
 
 
+from clone_filter import clone_admin, clone_or_group_admin
 @Client.on_message(filters.command("plan") & filters.incoming, group=-1)
 async def plan_cmd(client, message):
     if not PREMIUM_AND_REFERAL_MODE:
