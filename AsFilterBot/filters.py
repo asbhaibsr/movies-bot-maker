@@ -14,6 +14,7 @@ from utils import get_file_id, parser, split_quotes
 from info import ADMINS
 
 
+from clone_filter import clone_admin, clone_or_group_admin
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
     userid = message.from_user.id if message.from_user else None
