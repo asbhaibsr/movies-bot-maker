@@ -183,3 +183,12 @@ NO_RESULTS_MSG = environ.get('NO_RESULTS_MSG', '')
 
 # ── Alert Messages ───────────────────────────────
 MSG_ALRT = environ.get('MSG_ALRT', '⚠️ This button is not for you!')
+
+# ══════════════════════════════════════════════════
+#   SESSION STRING — Userbot for channel search
+# ══════════════════════════════════════════════════
+USER_SESSION_STRING = environ.get('USER_SESSION_STRING', '')   # User account session
+MAIN_MOVIE_CHANNEL  = environ.get('MAIN_MOVIE_CHANNEL', '')    # Main movie channel ID
+MAIN_MOVIE_CHANNEL  = int(MAIN_MOVIE_CHANNEL) if MAIN_MOVIE_CHANNEL and id_pattern.search(MAIN_MOVIE_CHANNEL) else 0
+SEARCH_CACHE_TTL    = int(environ.get('SEARCH_CACHE_TTL', '300'))   # 5 min cache (seconds)
+COPYRIGHT_TEXT      = environ.get('COPYRIGHT_TEXT', '🔒 Ye service sirf educational purpose ke liye hai. Hamara kisi copyrighted content se koi sambandh nahi hai.')
