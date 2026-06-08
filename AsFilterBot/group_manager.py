@@ -162,7 +162,8 @@ async def _fetch_groups(bot) -> tuple:
 
 
 # ── /mygroups command ────────────────────────────────────────────
-@Client.on_message(filters.command(["mygroups", "groups"]) & filters.user(ADMINS), group=-1)
+from clone_filter import clone_admin, clone_or_group_admin
+@Client.on_message(filters.command(["mygroups", "groups"]) & clone_admin, group=-1)
 async def mygroups_cmd(bot, message: Message):
     sts = await message.reply_text(
         "<b>⏳ Saare groups check ho rahe hain, thoda wait karo...\n"
