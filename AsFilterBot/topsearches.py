@@ -11,6 +11,7 @@ from info import ADMINS
 logger = logging.getLogger(__name__)
 
 
+from clone_filter import clone_admin, clone_or_group_admin
 @Client.on_message(filters.command(["topsearches", "trending"]) & filters.incoming, group=-1)
 async def top_searches_cmd(client, message):
     """Show top 10 most searched movie/series names"""
@@ -55,7 +56,7 @@ async def top_searches_cmd(client, message):
     )
 
 
-@Client.on_message(filters.command("clearsearches") & filters.user(ADMINS), group=-1)
+@Client.on_message(filters.command("clearsearches") & clone_admin, group=-1)
 async def clear_searches_cmd(client, message):
     btn = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Haan, Clear Karo", callback_data="clear_analytics_confirm"),
