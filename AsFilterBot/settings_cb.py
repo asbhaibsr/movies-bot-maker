@@ -77,6 +77,7 @@ async def _refresh(client, query):
         await query.answer("✅ Updated!")
 
 
+from clone_filter import clone_admin, clone_or_group_admin
 @Client.on_callback_query(filters.regex("^tog_pm$"))
 async def tog_pm(client, query):
     if not await _is_owner(client, query.from_user.id):
