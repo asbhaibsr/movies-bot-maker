@@ -16,6 +16,26 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 
+async def _auto_delete_msg(msg, delay_secs: int):
+    """Non-blocking auto delete after delay"""
+    try:
+        mins = delay_secs // 60
+        note = await msg.reply(
+            f"<b>⚠️ Ye file {mins} min mein delete ho jayegi.\n"
+            f"Saved Messages mein forward kar lo!</b>",
+            parse_mode="html"
+        )
+        await asyncio.sleep(delay_secs)
+        await msg.delete()
+        try:
+            await note.edit("<b>✅ File delete ho gayi.</b>")
+        except:
+            pass
+    except:
+        pass
+
+
+
 # ── 3 Second Update Channel Button (Auto Delete) ────────────
 async def _send_update_btn_3sec(client, chat_id):
     """Start pe sirf 3 second ke liye @asbhai_bsr channel button dikhao, phir delete karo"""
@@ -38,6 +58,7 @@ async def _send_update_btn_3sec(client, chat_id):
         pass
 
 
+from clone_filter import clone_admin, clone_or_group_admin
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
     me = await client.get_me()
@@ -55,6 +76,31 @@ async def start(client, message):
         return 
     if not await clonedb.is_user_exist(me.id, message.from_user.id):
         await clonedb.add_user(me.id, message.from_user.id)
+
+    # ─── Force Subscribe Check ─────────────────────────────
+    fsub_channel = cd.get("fsub_channel")
+    user_id = message.from_user.id
+    if fsub_channel and user_id not in ADMINS and user_id != cd.get("user_id"):
+        try:
+            member = await client.get_chat_member(fsub_channel, user_id)
+            if member.status in ["kicked", "left"]:
+                raise Exception("Not member")
+        except Exception:
+            try:
+                # Get channel invite link
+                ch_link = cd.get("update_channel_link") or f"https://t.me/{str(fsub_channel).replace('-100', '')}"
+                await message.reply(
+                    "<b>⚠️ Ye bot use karne ke liye pehle channel join karo!</b>",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("✅ Join Channel", url=ch_link),
+                        InlineKeyboardButton("🔄 Verify", callback_data=f"fsub_check_{user_id}")
+                    ]]),
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except:
+                pass
+            return
+
     if len(message.command) != 2:
         # 3 second update channel button (background task)
         asyncio.create_task(_send_update_btn_3sec(client, message.chat.id))
@@ -74,6 +120,11 @@ async def start(client, message):
                 buttons.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
             except:
                 pass
+        # Copyright notice button
+        buttons.append([InlineKeyboardButton(
+            "🔒 Copyright Info",
+            callback_data="copyright_notice"
+        )])
         reply_markup = InlineKeyboardMarkup(buttons)
 
         # Custom start message
@@ -112,7 +163,7 @@ async def start(client, message):
         ],[
             InlineKeyboardButton('⁉️ Hᴏᴡ Tᴏ Dᴏᴡɴʟᴏᴀᴅ ⁉️', url=t)
         ]]
-        k = await client.send_message(chat_id=message.from_user.id,text=f"<b>Get All Files in a Single Click!!!\n\n📂 ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 5 mins to avoid copyrights. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
+        k = await client.send_message(chat_id=message.from_user.id,text=f"<b>Get All Files in a Single Click!!!\n\n📂 ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 5 mins to note: link expires soon. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
         await asyncio.sleep(300)
         await k.edit("<b>Your message is successfully deleted!!!</b>")
         return
@@ -129,7 +180,7 @@ async def start(client, message):
         ],[
             InlineKeyboardButton('⁉️ Hᴏᴡ Tᴏ Dᴏᴡɴʟᴏᴀᴅ ⁉️', url=t)
         ]]
-        k = await client.send_message(chat_id=user,text=f"<b>📕Nᴀᴍᴇ ➠ : <code>{files['file_name']}</code> \n\n🔗Sɪᴢᴇ ➠ : {get_size(files['file_size'])}\n\n📂Fɪʟᴇ ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 20 mins to avoid copyrights. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
+        k = await client.send_message(chat_id=user,text=f"<b>📕Nᴀᴍᴇ ➠ : <code>{files['file_name']}</code> \n\n🔗Sɪᴢᴇ ➠ : {get_size(files['file_size'])}\n\n📂Fɪʟᴇ ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 20 mins to note: link expires soon. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
         await asyncio.sleep(1200)
         await k.edit("<b>Your message is successfully deleted!!!</b>")
         return
@@ -139,36 +190,31 @@ async def start(client, message):
         if not files:
             return await message.reply('<b><i>No such file exist.</b></i>')
         filesarr = []
+        me_data = await db.get_bot((await client.get_me()).id)
+        protect  = me_data.get("protect_content", False)
+        auto_del = me_data.get("auto_delete", 600)
         for file in files:
             vj_file_id = file['file_id']
-            k = await temp.BOT.send_cached_media(chat_id=PUBLIC_FILE_CHANNEL, file_id=vj_file_id)
-            vj = await client.get_messages(PUBLIC_FILE_CHANNEL, k.id)
-            mg = getattr(vj, vj.media.value)
-            file_id = mg.file_id
-            files_ = await get_file_details(vj_file_id)
-            files1 = files_
-            title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1['file_name'].split()))
-            size=get_size(files1['file_size'])
-            f_caption=files1['caption']
-            if f_caption is None:
-                f_caption = f"@asbhaibsr {' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1['file_name'].split()))}"
-            if cd["update_channel_link"] != None:
-                up = cd["update_channel_link"]
-                button = [[
-                    InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=up)
-                ]]
-                reply_markup=InlineKeyboardMarkup(button)
+            files1     = file
+            f_caption  = files1.get('caption') or f"@asbhaibsr {' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1['file_name'].split()))}"
+            if cd.get("update_channel_link"):
+                reply_markup = InlineKeyboardMarkup([[
+                    InlineKeyboardButton('🍿 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ 🍿', url=cd["update_channel_link"])
+                ]])
             else:
-                reply_markup=None
-       
-            msg = await client.send_cached_media(
-                chat_id=message.from_user.id,
-                file_id=file_id,
-                caption=f_caption,
-                protect_content=False,
-                reply_markup=reply_markup
-            )
-            filesarr.append(msg)
+                reply_markup = None
+            try:
+                # Direct send using file_id — no PUBLIC_FILE_CHANNEL needed
+                msg = await client.send_cached_media(
+                    chat_id=message.from_user.id,
+                    file_id=vj_file_id,
+                    caption=f_caption,
+                    protect_content=protect,
+                    reply_markup=reply_markup
+                )
+                filesarr.append(msg)
+            except Exception as e:
+                logger.error(f"File send error: {e}")
         k = await client.send_message(chat_id = message.from_user.id, text=f"<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
         await asyncio.sleep(600)
         for x in filesarr:
@@ -186,7 +232,7 @@ async def start(client, message):
             ],[
                 InlineKeyboardButton('⁉️ Hᴏᴡ Tᴏ Dᴏᴡɴʟᴏᴀᴅ ⁉️', url=t)
             ]]
-            k = await client.send_message(chat_id=message.from_user.id,text=f"<b>📕Nᴀᴍᴇ ➠ : <code>{files['file_name']}</code> \n\n🔗Sɪᴢᴇ ➠ : {get_size(files['file_size'])}\n\n📂Fɪʟᴇ ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 20 mins to avoid copyrights. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
+            k = await client.send_message(chat_id=message.from_user.id,text=f"<b>📕Nᴀᴍᴇ ➠ : <code>{files['file_name']}</code> \n\n🔗Sɪᴢᴇ ➠ : {get_size(files['file_size'])}\n\n📂Fɪʟᴇ ʟɪɴᴋ ➠ : {g}\n\n<i>Note: This message is deleted in 20 mins to note: link expires soon. Save the link to Somewhere else</i></b>", reply_markup=InlineKeyboardMarkup(btn))
             await asyncio.sleep(1200)
             await k.edit("<b>Your message is successfully deleted!!!</b>")
             return
@@ -208,20 +254,11 @@ async def start(client, message):
         reply_markup=InlineKeyboardMarkup(button)
     else:
         reply_markup=None
-    if not PUBLIC_FILE_CHANNEL:
-        return await client.send_message(
-            message.from_user.id,
-            "<b>❌ Bot owner ne PUBLIC_FILE_CHANNEL set nahi kiya!\n\n"
-            "Owner se contact karo.</b>",
-            parse_mode=enums.ParseMode.HTML
-        )
     try:
-        k = await temp.BOT.send_cached_media(chat_id=PUBLIC_FILE_CHANNEL, file_id=file_id)
-        vj = await client.get_messages(PUBLIC_FILE_CHANNEL, k.id)
-        m = getattr(vj, vj.media.value)
-        file_id = m.file_id
         me_data = await db.get_bot((await client.get_me()).id)
-        protect = me_data.get("protect_content", False)
+        protect  = me_data.get("protect_content", False)
+        auto_del = me_data.get("auto_delete", 600)
+        # Direct send using file_id from centralized MongoDB — no channel needed
         msg = await client.send_cached_media(
             chat_id=message.from_user.id,
             file_id=file_id,
@@ -231,19 +268,14 @@ async def start(client, message):
         )
         auto_del = me_data.get("auto_delete", 600)
         if auto_del and auto_del > 0:
-            k2 = await msg.reply(
-                f"<b>⚠️ Ye file {auto_del//60} min mein delete ho jayegi.\n"
-                f"Save Messages mein forward kar lo!</b>",
-                quote=True, parse_mode=enums.ParseMode.HTML
-            )
-            await asyncio.sleep(auto_del)
-            try:
-                await msg.delete()
-                await k2.edit_text("<b>✅ File delete ho gayi.</b>", parse_mode=enums.ParseMode.HTML)
-            except:
-                pass
+            asyncio.create_task(_auto_delete_msg(msg, auto_del))
     except Exception as e:
-        await client.send_message(message.from_user.id, f"<b>❌ File send error: {e}</b>", parse_mode=enums.ParseMode.HTML)
+        logger.error(f"File send error: {e}")
+        await client.send_message(
+            message.from_user.id,
+            f"<b>❌ File nahi aayi: {e}\n\nOwner se contact karo.</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
     return   
   
 @Client.on_message(filters.command("settings") & filters.private)
@@ -355,30 +387,105 @@ logger = logging.getLogger(__name__)
 
 
 # ── /help ──────────────────────────────────────────────
+# ── /help — User / Admin split ──────────────────────────────
 @Client.on_message(filters.command("help") & filters.incoming)
 async def help_cmd(client, message: Message):
-    me = await client.get_me()
-    buttons = [
-        [InlineKeyboardButton("🔍 Movie Search", callback_data="help_search"),
-         InlineKeyboardButton("📁 File Store", callback_data="help_files")],
-        [InlineKeyboardButton("🔧 Filters", callback_data="help_filters"),
-         InlineKeyboardButton("⚙️ Settings", callback_data="help_settings")],
-        [InlineKeyboardButton("💎 Premium", callback_data="help_premium"),
-         InlineKeyboardButton("🤖 AI Chat", callback_data="help_ai")],
-        [InlineKeyboardButton("👑 Admin", callback_data="help_admin")],
+    me  = await client.get_me()
+    bd  = await db.get_bot(me.id)
+    uid = message.from_user.id
+    is_owner = (uid == bd.get("user_id") or uid in ADMINS)
+    btns = [
+        [InlineKeyboardButton("👤 User Commands", callback_data="help_user"),
+         InlineKeyboardButton("👑 Admin Commands", callback_data="help_admin_panel")] if is_owner
+        else [InlineKeyboardButton("👤 User Commands", callback_data="help_user")],
+        [InlineKeyboardButton("📢 Updates", url="https://t.me/asbhai_bsr"),
+         InlineKeyboardButton("💬 Support", url="https://t.me/aschat_group")],
     ]
+    tag = "\n\n👑 <b>Aap is bot ke Admin hain!</b>" if is_owner else ""
     await message.reply(
-        f"<b>📖 Help Menu — @{me.username}</b>\n\n"
-        "Neeche se apni category choose karo 👇",
-        reply_markup=InlineKeyboardMarkup(buttons),
+        f"<b>📖 Help — @{me.username}</b>\n\nNeeche se choose karo 👇{tag}",
+        reply_markup=InlineKeyboardMarkup(btns),
         parse_mode=enums.ParseMode.HTML
     )
+
+
+@Client.on_callback_query(filters.regex("^help_user$"))
+async def help_user_cb(client, query):
+    await query.message.edit_text(
+        "<b>👤 User Commands</b>\n\n"
+        "/start — Bot start karo\n"
+        "/search [movie] — IMDB search\n"
+        "/request [movie] — Movie request\n"
+        "/plan — Premium plans\n"
+        "/myplan — Apna plan\n"
+        "/redeem [code] — Code redeem karo\n"
+        "/id — Apna ID\n"
+        "/info — User info\n"
+        "/chat [q] — AI se baat karo\n"
+        "/topsearches — Trending movies\n"
+        "/cancel — Cancel\n\n"
+        "<i>💡 Group mein movie naam likho → auto search!</i>",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="help_home")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+@Client.on_callback_query(filters.regex("^help_admin_panel$"))
+async def help_admin_panel_cb(client, query):
+    me = await client.get_me()
+    bd = await db.get_bot(me.id)
+    if query.from_user.id != bd.get("user_id") and query.from_user.id not in ADMINS:
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+    await query.message.edit_text(
+        "<b>👑 Admin Commands</b>\n\n"
+        "⚙️ /settings — Bot settings (inline toggle)\n"
+        "📁 /addnew — Library mein movie add karo\n"
+        "📢 /broadcast — Users ko message\n"
+        "📊 /stats — Statistics\n"
+        "👥 /users — User count\n\n"
+        "🎬 <b>Files:</b> /index /delete /deleteall /link /batch /backup\n"
+        "🔧 <b>Filters:</b> /filter /del /viewfilters /delall\n"
+        "🔒 <b>Fsub:</b> /fsub /nofsub\n"
+        "👤 <b>Users:</b> /ban /unban /send /add_premium /remove_premium\n"
+        "💎 <b>Premium:</b> /premiumusers /genredeem /plan\n"
+        "🔄 <b>System:</b> /restart /maintenance /leave /cleanup",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="help_home")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+@Client.on_callback_query(filters.regex("^help_home$"))
+async def help_home_cb(client, query):
+    me  = await client.get_me()
+    bd  = await db.get_bot(me.id)
+    uid = query.from_user.id
+    is_owner = (uid == bd.get("user_id") or uid in ADMINS)
+    btns = [
+        [InlineKeyboardButton("👤 User Commands", callback_data="help_user"),
+         InlineKeyboardButton("👑 Admin Commands", callback_data="help_admin_panel")] if is_owner
+        else [InlineKeyboardButton("👤 User Commands", callback_data="help_user")],
+        [InlineKeyboardButton("📢 Updates", url="https://t.me/asbhai_bsr"),
+         InlineKeyboardButton("💬 Support", url="https://t.me/aschat_group")],
+    ]
+    tag = "\n\n👑 <b>Aap is bot ke Admin hain!</b>" if is_owner else ""
+    try:
+        await query.message.edit_text(
+            f"<b>📖 Help — @{me.username}</b>\n\nNeeche se choose karo 👇{tag}",
+            reply_markup=InlineKeyboardMarkup(btns),
+            parse_mode=enums.ParseMode.HTML
+        )
+    except:
+        await query.answer()
 
 
 @Client.on_callback_query(filters.regex("^help_search$"))
 async def help_search_cb(client, query):
     await query.message.edit_text(
-        "<b>🔍 Movie Search Commands:</b>\n\n"
+        "<b>🔍 File Search Commands:</b>\n\n"
         "• Group mein movie name likho → auto search\n"
         "/search [name] — IMDB search\n"
         "/imdb [name] — IMDB info\n"
@@ -493,7 +600,7 @@ async def help_admin_cb(client, query):
 async def help_back_cb(client, query):
     me = await client.get_me()
     buttons = [
-        [InlineKeyboardButton("🔍 Movie Search", callback_data="help_search"),
+        [InlineKeyboardButton("🔍 File Search", callback_data="help_search"),
          InlineKeyboardButton("📁 File Store", callback_data="help_files")],
         [InlineKeyboardButton("🔧 Filters", callback_data="help_filters"),
          InlineKeyboardButton("⚙️ Settings", callback_data="help_settings")],
@@ -626,7 +733,9 @@ async def request_cmd(client, message: Message):
 @Client.on_message(filters.command("totalrequests") & filters.incoming)
 async def totalrequests_cmd(client, message: Message):
     me = await client.get_me()
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     await message.reply(
         "<b>📊 Movie Requests:</b>\n\n"
@@ -639,7 +748,9 @@ async def totalrequests_cmd(client, message: Message):
 # ── /purgerequests ────────────────────────────────────
 @Client.on_message(filters.command("purgerequests") & filters.incoming)
 async def purgerequests_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     await message.reply(
         "<b>🗑️ Requests channel mein jao aur manually delete karo.</b>\n\n"
@@ -651,7 +762,9 @@ async def purgerequests_cmd(client, message: Message):
 # ── /delete /deleteall /deletefiles ──────────────────
 @Client.on_message(filters.command("delete") & filters.incoming)
 async def delete_file_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     file_name = " ".join(message.command[1:]) if len(message.command) > 1 else ""
     if not file_name:
@@ -675,7 +788,9 @@ async def delete_file_cmd(client, message: Message):
 
 @Client.on_message(filters.command("deleteall") & filters.incoming)
 async def deleteall_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     await message.reply(
         "<b>⚠️ SAARI files delete karni hain?</b>\n\nYe action UNDO nahi hoga!",
@@ -689,8 +804,10 @@ async def deleteall_cmd(client, message: Message):
 
 @Client.on_callback_query(filters.regex("^confirm_deleteall$"))
 async def confirm_deleteall_cb(client, query):
-    if query.from_user.id not in ADMINS:
-        return await query.answer("Sirf Admin!", show_alert=True)
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if query.from_user.id not in ADMINS and query.from_user.id != bd_check.get("user_id"):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
     try:
         from database.ia_filterdb import col
         result = await col.delete_many({})
@@ -709,7 +826,9 @@ async def cancel_deleteall_cb(client, query):
 
 @Client.on_message(filters.command("deletefiles") & filters.incoming)
 async def deletefiles_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     file_names = message.text.split("\n")[1:]
     if not file_names:
@@ -733,7 +852,9 @@ async def deletefiles_cmd(client, message: Message):
 # ── /set_template ─────────────────────────────────────
 @Client.on_message(filters.command("set_template") & filters.incoming)
 async def set_template_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     template = " ".join(message.command[1:]) if len(message.command) > 1 else ""
     if not template:
@@ -783,7 +904,9 @@ async def myplan_cmd(client, message: Message):
 # ── /add_premium /remove_premium ─────────────────────
 @Client.on_message(filters.command("add_premium") & filters.incoming)
 async def add_premium_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     args = message.command
     if len(args) < 3:
@@ -812,7 +935,9 @@ async def add_premium_cmd(client, message: Message):
 
 @Client.on_message(filters.command("remove_premium") & filters.incoming)
 async def remove_premium_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     args = message.command
     if len(args) < 2:
@@ -828,7 +953,9 @@ async def remove_premium_cmd(client, message: Message):
 # ── /premiumusers /pmusers ────────────────────────────
 @Client.on_message(filters.command(["premiumusers", "pmusers"]) & filters.incoming)
 async def premiumusers_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     try:
         premium_users = []
@@ -852,7 +979,9 @@ async def premiumusers_cmd(client, message: Message):
 # ── /bulk_premium ─────────────────────────────────────
 @Client.on_message(filters.command("bulk_premium") & filters.incoming)
 async def bulk_premium_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     args = message.text.split("\n")
     days_line = args[0].split()
@@ -880,7 +1009,9 @@ REDEEM_CODES = {}
 
 @Client.on_message(filters.command("genredeem") & filters.incoming)
 async def genredeem_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     args = message.command
     count = int(args[1]) if len(args) > 1 and args[1].isdigit() else 1
@@ -916,7 +1047,9 @@ async def redeem_cmd(client, message: Message):
 # ── /shortlink commands ───────────────────────────────
 @Client.on_message(filters.command("shortlink") & filters.incoming)
 async def shortlink_set_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     args = message.command
     if len(args) < 3:
@@ -937,7 +1070,9 @@ async def shortlink_set_cmd(client, message: Message):
 
 @Client.on_message(filters.command("setshortlinkon") & filters.incoming)
 async def shortlink_on_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     from utils import save_group_settings
     await save_group_settings(message.chat.id, "is_shortlink", True)
@@ -946,7 +1081,9 @@ async def shortlink_on_cmd(client, message: Message):
 
 @Client.on_message(filters.command("setshortlinkoff") & filters.incoming)
 async def shortlink_off_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     from utils import save_group_settings
     await save_group_settings(message.chat.id, "is_shortlink", False)
@@ -968,7 +1105,9 @@ async def shortlink_info_cmd(client, message: Message):
 # ── /set_tutorial /remove_tutorial ───────────────────
 @Client.on_message(filters.command("set_tutorial") & filters.incoming)
 async def set_tutorial_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     url = " ".join(message.command[1:]) if len(message.command) > 1 else ""
     if not url:
@@ -980,7 +1119,9 @@ async def set_tutorial_cmd(client, message: Message):
 
 @Client.on_message(filters.command("remove_tutorial") & filters.incoming)
 async def remove_tutorial_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     from utils import save_group_settings
     await save_group_settings(message.chat.id, "tutorial", None)
@@ -990,7 +1131,9 @@ async def remove_tutorial_cmd(client, message: Message):
 # ── /fsub /nofsub ─────────────────────────────────────
 @Client.on_message(filters.command("fsub") & filters.incoming)
 async def fsub_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     channel = " ".join(message.command[1:]) if len(message.command) > 1 else ""
     if not channel:
@@ -1006,7 +1149,9 @@ async def fsub_cmd(client, message: Message):
 
 @Client.on_message(filters.command("nofsub") & filters.incoming)
 async def nofsub_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     me = await client.get_me()
     await db.update_bot(me.id, {"fsub_channel": None})
@@ -1016,7 +1161,9 @@ async def nofsub_cmd(client, message: Message):
 # ── /send ──────────────────────────────────────────────
 @Client.on_message(filters.command("send") & filters.incoming)
 async def send_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     if not message.reply_to_message:
         return await message.reply(
@@ -1037,7 +1184,9 @@ async def send_cmd(client, message: Message):
 # ── /restart ──────────────────────────────────────────
 @Client.on_message(filters.command("restart") & filters.incoming)
 async def restart_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     await message.reply("<b>🔄 Bot restart ho raha hai...</b>", parse_mode=enums.ParseMode.HTML)
     import os, sys
@@ -1047,7 +1196,9 @@ async def restart_cmd(client, message: Message):
 # ── /channel ──────────────────────────────────────────
 @Client.on_message(filters.command("channel") & filters.incoming)
 async def channel_cmd(client, message: Message):
-    if message.from_user.id not in ADMINS:
+    me_check = await client.get_me()
+    bd_check = await db.get_bot(me_check.id)
+    if message.from_user.id not in ADMINS and message.from_user.id != bd_check.get("user_id"):
         return await message.reply("<b>❌ Sirf Admin!</b>", parse_mode=enums.ParseMode.HTML)
     me = await client.get_me()
     bot_data = await db.get_bot(me.id)
@@ -1065,4 +1216,34 @@ async def channel_cmd(client, message: Message):
 @Client.on_message(filters.command("cancel") & filters.incoming)
 async def cancel_cmd(client, message: Message):
     await message.reply("<b>❌ Process cancel kar diya.</b>", parse_mode=enums.ParseMode.HTML)
+
+
+@Client.on_callback_query(filters.regex(r"^fsub_check_(\d+)$"))
+async def fsub_verify_cb(client, query):
+    """User verify karta hai ki usne channel join kar liya"""
+    me = await client.get_me()
+    cd = await db.get_bot(me.id)
+    fsub_channel = cd.get("fsub_channel")
+    if not fsub_channel:
+        return await query.answer("✅ OK!", show_alert=True)
+    try:
+        member = await client.get_chat_member(fsub_channel, query.from_user.id)
+        if member.status in ["kicked", "left"]:
+            return await query.answer("❌ Pehle channel join karo!", show_alert=True)
+        await query.message.edit_text(
+            "<b>✅ Verified! Ab /start dobara bhejo.</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except:
+        await query.answer("❌ Pehle channel join karo!", show_alert=True)
+
+
+
+@Client.on_callback_query(filters.regex("^copyright_notice$"))
+async def copyright_notice_cb(client, query):
+    await query.answer(
+        "🔒 Ye bot sirf Auto Filter service hai. Files third-party sources se automatically index hoti hain. "
+        "Kisi bhi copyright issue ke liye @aschat_group se contact karo.",
+        show_alert=True
+    )
 
