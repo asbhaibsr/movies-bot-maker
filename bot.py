@@ -20,6 +20,7 @@ from datetime import date, datetime
 from aiohttp import web
 from plugins import web_server
 from plugins.clone import restart_bots
+from userbot import init_userbot, stop_userbot
 
 from AsBhai.bot import AsBhaiBot
 from AsBhai.util.keepalive import ping_server
@@ -97,6 +98,12 @@ async def start():
         print("⏰ Expiry check task started")
     except Exception as e:
         print(f"Expiry task error: {e}")
+
+    # Userbot start karo (session string)
+    try:
+        await init_userbot()
+    except Exception as e:
+        print(f'Userbot: {e}')
 
     # Clone bots restart
     if CLONE_MODE:
