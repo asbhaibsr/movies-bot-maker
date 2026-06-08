@@ -19,7 +19,8 @@ def is_maintenance() -> bool:
     return _MAINTENANCE["on"]
 
 
-@Client.on_message(filters.command("maintenance") & filters.user(ADMINS), group=-1)
+from clone_filter import clone_admin, clone_or_group_admin
+@Client.on_message(filters.command("maintenance") & clone_admin, group=-1)
 async def maintenance_cmd(client, message):
     """
     /maintenance on [custom message]
