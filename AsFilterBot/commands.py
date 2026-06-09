@@ -120,11 +120,7 @@ async def start(client, message):
                 buttons.append([InlineKeyboardButton(btn["text"], url=btn["url"])])
             except:
                 pass
-        # Copyright notice button
-        buttons.append([InlineKeyboardButton(
-            "🔒 Copyright Info",
-            callback_data="copyright_notice"
-        )])
+
         reply_markup = InlineKeyboardMarkup(buttons)
 
         # Custom start message
@@ -1237,13 +1233,34 @@ async def fsub_verify_cb(client, query):
     except:
         await query.answer("❌ Pehle channel join karo!", show_alert=True)
 
-
-
-@Client.on_callback_query(filters.regex("^copyright_notice$"))
-async def copyright_notice_cb(client, query):
-    await query.answer(
-        "🔒 Ye bot sirf Auto Filter service hai. Files third-party sources se automatically index hoti hain. "
-        "Kisi bhi copyright issue ke liye @aschat_group se contact karo.",
-        show_alert=True
-    )
+@Client.on_callback_query(filters.regex("^help$"))
+async def help_callback_from_start(client, query):
+    """Start message ke Help button se aaya"""
+    me  = await client.get_me()
+    bd  = await db.get_bot(me.id)
+    uid = query.from_user.id
+    is_owner = (uid == bd.get("user_id") or uid in ADMINS)
+    btns = [
+        [InlineKeyboardButton("👤 User Commands", callback_data="help_user"),
+         InlineKeyboardButton("👑 Admin Commands", callback_data="help_admin_panel")] if is_owner
+        else [InlineKeyboardButton("👤 User Commands", callback_data="help_user")],
+        [InlineKeyboardButton("📢 Updates", url="https://t.me/asbhai_bsr"),
+         InlineKeyboardButton("💬 Support", url="https://t.me/aschat_group")],
+    ]
+    tag = "\n\n👑 <b>Aap is bot ke Admin hain!</b>" if is_owner else ""
+    try:
+        await query.message.edit_text(
+            f"<b>📖 Help — @{me.username}</b>\n\nNeeche se choose karo 👇{tag}",
+            reply_markup=InlineKeyboardMarkup(btns),
+            parse_mode=enums.ParseMode.HTML
+        )
+    except:
+        try:
+            await query.message.edit_caption(
+                f"<b>📖 Help — @{me.username}</b>\n\nNeeche se choose karo 👇{tag}",
+                reply_markup=InlineKeyboardMarkup(btns),
+                parse_mode=enums.ParseMode.HTML
+            )
+        except:
+            await query.answer("Help menu open ho raha hai...", show_alert=False)
 
