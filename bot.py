@@ -3,8 +3,12 @@
 #   BotFather Style Movie Bot Maker
 # ════════════════════════════════════════════════════════════
 
-import sys, glob, importlib, logging, logging.config
-import pytz, asyncio
+import asyncio, sys, glob, importlib, logging, logging.config
+import pytz
+
+# Python 3.10+ fix: loop pehle banao — Motor/Pyrogram isi loop se judenge
+_loop = asyncio.new_event_loop()
+asyncio.set_event_loop(_loop)
 from pathlib import Path
 
 logging.config.fileConfig('logging.conf')
@@ -28,13 +32,14 @@ from AsBhai.bot.clients import initialize_clients
 
 ppath = "plugins/*.py"
 files = glob.glob(ppath)
+AsBhaiBot.start()  # same loop use karega jo upar set ki hai
+
 async def start():
     print('\n')
     print('━' * 40)
     print('🤖 @createautofilterRobot starting...')
     print('━' * 40)
 
-    await AsBhaiBot.start()
     await initialize_clients()
 
     # Plugins load karo
@@ -121,6 +126,6 @@ async def start():
 
 if __name__ == '__main__':
     try:
-        asyncio.run(start())
+        _loop.run_until_complete(start())
     except KeyboardInterrupt:
         logging.info('Bot Stopped!')
