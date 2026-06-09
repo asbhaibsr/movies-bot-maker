@@ -735,3 +735,13 @@ async def my_sub_status_cb(client, query: CallbackQuery):
         ]),
         parse_mode=enums.ParseMode.HTML
     )
+
+@Client.on_callback_query(filters.regex("^main_copyright$"))
+async def main_copyright_cb(client, query):
+    await query.answer(
+        "🔒 Ye ek Auto Filter service hai.\n\n"
+        "Files third-party sources se automatically index hoti hain.\n"
+        "Hamara kisi bhi copyrighted content se seedha koi sambandh nahi.\n\n"
+        "Kisi bhi issue ke liye @aschat_group contact karo.",
+        show_alert=True
+    )
