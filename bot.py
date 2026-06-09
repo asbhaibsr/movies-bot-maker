@@ -28,15 +28,13 @@ from AsBhai.bot.clients import initialize_clients
 
 ppath = "plugins/*.py"
 files = glob.glob(ppath)
-AsBhaiBot.start()
-
-
 async def start():
     print('\n')
     print('━' * 40)
     print('🤖 @createautofilterRobot starting...')
     print('━' * 40)
 
+    await AsBhaiBot.start()
     await initialize_clients()
 
     # Plugins load karo
