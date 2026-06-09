@@ -18,18 +18,24 @@ sec_db = sec_client[DATABASE_NAME]
 sec_col = sec_db[COLLECTION_NAME]
 
 
-async def save_file(media, bot_id=None):
+async def save_file(media, bot_id=None, channel_id=None, msg_id=None):
     """Save file in the database with bot_id tag."""
     
     file_id, _ = unpack_new_file_id(media.file_id)
     file_name = clean_file_name(media.file_name)
     new_file_name = f"@asbhai_bsr {file_name}"
+    # Store channel source info on media for later use
+    media._channel_id  = channel_id
+    media._msg_id      = msg_id
     
     file = {
         'file_id': file_id,
+        'og_file_id': media.file_id,
         'file_name': new_file_name,
         'file_size': media.file_size,
-        'caption': media.caption.html if media.caption else None
+        'caption': media.caption.html if media.caption else None,
+        'channel_id': getattr(media, '_channel_id', None),   # Source channel ID
+        'channel_msg_id': getattr(media, '_msg_id', None),   # Source message ID
     }
 
     if is_file_already_saved(file_id, file_name):
