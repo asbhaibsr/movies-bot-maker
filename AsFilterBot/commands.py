@@ -200,15 +200,60 @@ async def start(client, message):
             else:
                 reply_markup = None
             try:
-                # Direct send using file_id — no PUBLIC_FILE_CHANNEL needed
-                msg = await client.send_cached_media(
-                    chat_id=message.from_user.id,
-                    file_id=vj_file_id,
-                    caption=f_caption,
-                    protect_content=protect,
-                    reply_markup=reply_markup
-                )
-                filesarr.append(msg)
+                from info import MAIN_MOVIE_CHANNEL
+                msg_f = None
+                ch_id_f  = files1.get('channel_id') or MAIN_MOVIE_CHANNEL
+                msg_id_f = files1.get('channel_msg_id')
+
+                # METHOD 1: copy_message
+                if ch_id_f and msg_id_f:
+                    try:
+                        msg_f = await client.copy_message(
+                            chat_id=message.from_user.id,
+                            from_chat_id=ch_id_f,
+                            message_id=msg_id_f,
+                            caption=f_caption,
+                            protect_content=protect,
+                            reply_markup=reply_markup,
+                            parse_mode=enums.ParseMode.HTML
+                        )
+                    except Exception:
+                        pass
+
+                # METHOD 2: userbot search
+                if not msg_f and MAIN_MOVIE_CHANNEL:
+                    try:
+                        from userbot import userbot as ub
+                        fname = files1.get('file_name','').replace('@asbhai_bsr ','')
+                        if ub and fname:
+                            async for umsg in ub.search_messages(MAIN_MOVIE_CHANNEL, query=fname, limit=3):
+                                if umsg.document or umsg.video:
+                                    msg_f = await client.copy_message(
+                                        chat_id=message.from_user.id,
+                                        from_chat_id=MAIN_MOVIE_CHANNEL,
+                                        message_id=umsg.id,
+                                        caption=f_caption,
+                                        protect_content=protect,
+                                        reply_markup=reply_markup,
+                                        parse_mode=enums.ParseMode.HTML
+                                    )
+                                    break
+                    except Exception:
+                        pass
+
+                # METHOD 3: direct file_id
+                if not msg_f:
+                    use_fid = files1.get('og_file_id') or vj_file_id
+                    msg_f = await client.send_cached_media(
+                        chat_id=message.from_user.id,
+                        file_id=use_fid,
+                        caption=f_caption,
+                        protect_content=protect,
+                        reply_markup=reply_markup
+                    )
+
+                if msg_f:
+                    filesarr.append(msg_f)
             except Exception as e:
                 logger.error(f"File send error: {e}")
         k = await client.send_message(chat_id = message.from_user.id, text=f"<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie Files/Videos will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this ALL Files/Videos to your Saved Messages and Start Download there</i></b>")
@@ -254,22 +299,75 @@ async def start(client, message):
         me_data = await db.get_bot((await client.get_me()).id)
         protect  = me_data.get("protect_content", False)
         auto_del = me_data.get("auto_delete", 600)
-        # Direct send using file_id from centralized MongoDB — no channel needed
-        msg = await client.send_cached_media(
-            chat_id=message.from_user.id,
-            file_id=file_id,
-            caption=f_caption,
-            protect_content=protect,
-            reply_markup=reply_markup
-        )
-        auto_del = me_data.get("auto_delete", 600)
-        if auto_del and auto_del > 0:
+        from info import MAIN_MOVIE_CHANNEL
+        msg = None
+
+        # METHOD 1: copy_message from source channel — SABSE RELIABLE
+        ch_id  = files.get('channel_id') or MAIN_MOVIE_CHANNEL
+        msg_id_src = files.get('channel_msg_id')
+        if ch_id and msg_id_src:
+            try:
+                msg = await client.copy_message(
+                    chat_id=message.from_user.id,
+                    from_chat_id=ch_id,
+                    message_id=msg_id_src,
+                    caption=f_caption,
+                    protect_content=protect,
+                    reply_markup=reply_markup,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except Exception as ce:
+                logger.warning(f"copy_message failed: {ce}")
+
+        # METHOD 2: userbot se channel search → message_id lo → copy karo
+        if not msg and MAIN_MOVIE_CHANNEL:
+            try:
+                from userbot import userbot as ub
+                fname = (files.get('file_name') or '').replace('@asbhai_bsr ','').replace('@asbhaibsr ','')
+                if ub and fname:
+                    async for umsg in ub.search_messages(MAIN_MOVIE_CHANNEL, query=fname, limit=5):
+                        if umsg.document or umsg.video or umsg.audio:
+                            msg = await client.copy_message(
+                                chat_id=message.from_user.id,
+                                from_chat_id=MAIN_MOVIE_CHANNEL,
+                                message_id=umsg.id,
+                                caption=f_caption,
+                                protect_content=protect,
+                                reply_markup=reply_markup,
+                                parse_mode=enums.ParseMode.HTML
+                            )
+                            # DB update with correct info for next time
+                            from database.ia_filterdb import col as fdb
+                            fdb.update_one({'file_id': file_id},
+                                {'$set': {'channel_id': MAIN_MOVIE_CHANNEL, 'channel_msg_id': umsg.id}})
+                            break
+            except Exception as ue:
+                logger.warning(f"userbot fallback failed: {ue}")
+
+        # METHOD 3: direct og_file_id try
+        if not msg:
+            use_fid = files.get('og_file_id') or file_id
+            msg = await client.send_cached_media(
+                chat_id=message.from_user.id,
+                file_id=use_fid,
+                caption=f_caption,
+                protect_content=protect,
+                reply_markup=reply_markup
+            )
+
+        if msg and auto_del and auto_del > 0:
             asyncio.create_task(_auto_delete_msg(msg, auto_del))
+        elif not msg:
+            await client.send_message(
+                message.from_user.id,
+                "<b>❌ File abhi available nahi.\nThodi der baad try karo.</b>",
+                parse_mode=enums.ParseMode.HTML
+            )
     except Exception as e:
         logger.error(f"File send error: {e}")
         await client.send_message(
             message.from_user.id,
-            f"<b>❌ File nahi aayi: {e}\n\nOwner se contact karo.</b>",
+            "<b>❌ File nahi aayi. Thodi der baad dobara try karo.</b>",
             parse_mode=enums.ParseMode.HTML
         )
     return   
