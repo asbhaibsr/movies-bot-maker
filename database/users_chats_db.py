@@ -66,6 +66,7 @@ class Database:
         self.redeem = self.db.redeem_codes          # Separate redeem codes collection
         self.analytics = self.db.search_analytics   # Search analytics collection
         self.notif = self.db.expiry_notifications   # Expiry reminder tracking
+        self.dynamic_admins_col = self.db.dynamic_admins  # Dynamic admin management
 
 
     def new_user(self, id, name):
@@ -489,5 +490,39 @@ class Database:
         expired = await self.redeem.count_documents({"expires_at": {"$lt": datetime.datetime.now()}, "used": False})
         return {"total": total, "used": used, "active": active, "expired": expired}
 
+
+
+    # ══════════════════════════════════════════════════════════════
+    #   DYNAMIC ADMIN MANAGEMENT
+    #   Env ADMINS ke upar extra admins DB mein store karo
+    # ══════════════════════════════════════════════════════════════
+
+    async def get_dynamic_admins(self) -> list:
+        """DB se saare dynamic admin IDs return karo"""
+        docs = await self.dynamic_admins_col.find({}).to_list(None)
+        return [int(d["user_id"]) for d in docs]
+
+    async def get_all_dynamic_admins_info(self) -> list:
+        """DB se saare dynamic admins ki full info (id + username)"""
+        return await self.dynamic_admins_col.find({}).to_list(None)
+
+    async def add_dynamic_admin(self, user_id: int, username: str = "") -> bool:
+        """Naya admin DB mein add karo"""
+        await self.dynamic_admins_col.update_one(
+            {"user_id": int(user_id)},
+            {"": {"user_id": int(user_id), "username": username}},
+            upsert=True
+        )
+        return True
+
+    async def remove_dynamic_admin(self, user_id: int) -> bool:
+        """Admin ko DB se remove karo"""
+        result = await self.dynamic_admins_col.delete_one({"user_id": int(user_id)})
+        return result.deleted_count > 0
+
+    async def is_dynamic_admin(self, user_id: int) -> bool:
+        """Check karo ye user dynamic admin hai"""
+        doc = await self.dynamic_admins_col.find_one({"user_id": int(user_id)})
+        return bool(doc)
 
 db = Database(USER_DB_URI, DATABASE_NAME)
