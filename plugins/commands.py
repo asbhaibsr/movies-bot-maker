@@ -62,11 +62,11 @@ async def start_cmd(client, message: Message):
         f"  ✅ Subscription manage karein\n\n"
         f"👇 Shuru karo neeche wale button se:"
     )
-    await message.reply_photo(
-        photo="https://telegra.ph/file/your-welcome-photo.jpg",
-        caption=text,
+    await message.reply(
+        text,
         reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=enums.ParseMode.HTML
+        parse_mode=enums.ParseMode.HTML,
+        disable_web_page_preview=True
     )
 
 
@@ -81,7 +81,7 @@ async def create_bot_guide_cb(client, query: CallbackQuery):
         "<b>Step 5:</b> BotFather wala message yahan forward karo\n\n"
         "👇 Shuru karo:"
     )
-    await query.message.edit_caption(
+    await query.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🚀 Bot Banao (/createbot)", callback_data="start_create")],
@@ -112,7 +112,7 @@ async def main_help_cb(client, query: CallbackQuery):
         f"💬 Support: @aschat_group\n"
         f"📢 Updates: @asbhai_bsr"
     )
-    await query.message.edit_caption(
+    await query.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back", callback_data="go_home")]
@@ -147,13 +147,16 @@ async def go_home_cb(client, query: CallbackQuery):
         f"👇 Shuru karo neeche wale button se:"
     )
     try:
-        await query.message.edit_caption(
+        await query.message.edit_text(
             text,
             reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode=enums.ParseMode.HTML
         )
     except:
-        await query.answer()
+        try:
+            await query.message.reply(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=enums.ParseMode.HTML)
+        except:
+            await query.answer()
 
 
 # ═══════════════════════════════════════════════
