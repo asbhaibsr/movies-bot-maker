@@ -713,17 +713,35 @@ async def _show_manage_menu(client, user_id, message=None, query=None):
     start_btns  = len(clone.get("start_buttons") or [])
     update_ch   = clone.get("update_channel_link") or "❌ Set Nahi"
 
+    # File count (sync PyMongo)
+    try:
+        from database.ia_filterdb import col as _col, sec_col as _sec_col
+        _file_cnt = _col.count_documents({}) + _sec_col.count_documents({})
+    except Exception:
+        _file_cnt = 0
+    try:
+        from AsFilterBot.database.clone_bot_userdb import clonedb as _cdb
+        _user_cnt = await _cdb.total_users_count(bot_id)
+    except Exception:
+        _user_cnt = 0
+
     text = (
         f"<b>⚙️ Bot Settings — @{bot_uname}</b>\n\n"
         f"📝 Welcome Msg: {'✅ Custom' if clone.get('start_message') else '❌ Default'}\n"
         f"🔘 Custom Buttons: {start_btns} button\n"
-        f"📢 Update Channel: {update_ch[:30] if update_ch != '❌ Set Nahi' else update_ch}\n\n"
+        f"📢 Update Channel: {update_ch[:30] if update_ch != '❌ Set Nahi' else update_ch}\n"
+        f"📁 Total Files: <b>{_file_cnt:,}</b>\n"
+        f"👤 Bot Users: <b>{_user_cnt:,}</b>\n\n"
         f"👇 Kya change karna hai?"
     )
     btns = [
         [InlineKeyboardButton("📝 Welcome Message", callback_data="set_start_msg")],
         [InlineKeyboardButton("🔘 Manage Buttons", callback_data="manage_buttons")],
         [InlineKeyboardButton("📢 Update Channel", callback_data="set_update_ch")],
+        [
+            InlineKeyboardButton("📁 Channels & Files", callback_data="manage_channel_stats"),
+            InlineKeyboardButton("🔍 Health Check", callback_data="manage_health_check"),
+        ],
         [InlineKeyboardButton("📊 Subscription", callback_data="my_sub_status")],
         [InlineKeyboardButton("🔙 Back", callback_data="go_home")],
     ]
@@ -950,4 +968,198 @@ async def main_copyright_cb(client, query):
         "Hamara kisi bhi copyrighted content se seedha koi sambandh nahi.\n\n"
         "Kisi bhi issue ke liye @aschat_group contact karo.",
         show_alert=True
+    )
+
+
+# ════════════════════════════════════════════════════════════
+#   Manage Panel — Channel Stats & Health Check Callbacks
+#   (Main bot se clone ka overview)
+# ════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex("^manage_channel_stats$"))
+async def manage_channel_stats_cb(client, query: CallbackQuery):
+    """Clone bot ke channels + file stats main bot se dikhao"""
+    user_id = query.from_user.id
+    clone   = await db.get_clone(user_id)
+    if not clone:
+        return await query.answer("Pehle bot banao!", show_alert=True)
+
+    await query.answer("📁 Fetching...")
+
+    bot_id    = clone.get("bot_id")
+    bot_uname = clone.get("bot_username", "?")
+    bot_data  = await db.get_bot(bot_id)
+
+    # File counts
+    try:
+        from database.ia_filterdb import col as _col, sec_col as _sec_col
+        primary_cnt = _col.count_documents({})
+        sec_cnt     = _sec_col.count_documents({})
+        total_files = primary_cnt + sec_cnt
+        # Indexed channels
+        ch_ids = set(c for c in (_col.distinct("channel_id") + _sec_col.distinct("channel_id")) if c)
+    except Exception:
+        primary_cnt = sec_cnt = total_files = 0
+        ch_ids = set()
+
+    # User count
+    try:
+        from AsFilterBot.database.clone_bot_userdb import clonedb as _cdb
+        user_cnt  = await _cdb.total_users_count(bot_id)
+    except Exception:
+        user_cnt = 0
+
+    # Group count
+    try:
+        grp_cnt = await db.total_chat_count()
+    except Exception:
+        grp_cnt = 0
+
+    # FSub
+    fsub = bot_data.get("fsub_channel")
+    fsub_str = f"<code>{fsub}</code>" if fsub else "❌ Set Nahi"
+
+    # Update channel
+    update_ch = bot_data.get("update_channel_link") or "❌ Set Nahi"
+
+    # Indexed channels list (max 5)
+    ch_lines = []
+    for ch_id in list(ch_ids)[:5]:
+        cnt = _col.count_documents({"channel_id": ch_id}) + _sec_col.count_documents({"channel_id": ch_id})
+        ch_lines.append(f"  📁 <code>{ch_id}</code> — {cnt:,} files")
+    if len(ch_ids) > 5:
+        ch_lines.append(f"  … aur {len(ch_ids)-5} channels")
+    indexed_text = "\n".join(ch_lines) if ch_lines else "  ❌ Koi channel indexed nahi"
+
+    text = (
+        f"<b>📁 @{bot_uname} — Channel & File Info</b>\n\n"
+        f"<b>📦 Files:</b>\n"
+        f"  Primary DB: {primary_cnt:,} | Secondary: {sec_cnt:,}\n"
+        f"  Total: <b>{total_files:,}</b>\n\n"
+        f"<b>📡 Indexed Channels ({len(ch_ids)}):</b>\n{indexed_text}\n\n"
+        f"<b>🔒 FSub:</b> {fsub_str}\n"
+        f"<b>📢 Update Channel:</b> {update_ch[:40]}\n\n"
+        f"<b>👥 Users:</b> {user_cnt:,} | "
+        f"<b>Groups:</b> {grp_cnt:,}"
+    )
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Health Check", callback_data="manage_health_check")],
+            [InlineKeyboardButton("🔙 Bot Settings", callback_data="manage_menu")],
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+@Client.on_callback_query(filters.regex("^manage_health_check$"))
+async def manage_health_check_cb(client, query: CallbackQuery):
+    """Main bot se clone bot ka health check"""
+    user_id = query.from_user.id
+    clone   = await db.get_clone(user_id)
+    if not clone:
+        return await query.answer("Pehle bot banao!", show_alert=True)
+
+    await query.answer("🔍 Checking...")
+
+    bot_id    = clone.get("bot_id")
+    bot_uname = clone.get("bot_username", "?")
+    bot_data  = await db.get_bot(bot_id)
+
+    checks = []
+
+    # ── 1. Bot running? ──────────────────────────────────────────────
+    running = False
+    clone_client = None
+    for b in getattr(temp, "BOTS", []):
+        try:
+            me = await b.get_me()
+            if me.id == bot_id:
+                running = True
+                clone_client = b
+                break
+        except Exception:
+            pass
+    checks.append("✅ Bot Running" if running else "❌ Bot Not Running — main bot restart karo")
+
+    # ── 2. Files indexed? ────────────────────────────────────────────
+    try:
+        from database.ia_filterdb import col as _col, sec_col as _sec_col
+        file_count = _col.count_documents({}) + _sec_col.count_documents({})
+        if file_count > 0:
+            checks.append(f"✅ Files: {file_count:,} indexed")
+        else:
+            checks.append("❌ Files: 0 files! Clone bot mein /index karo")
+    except Exception:
+        checks.append("⚠️ Files: Check nahi hua")
+
+    # ── 3. FSub channel ──────────────────────────────────────────────
+    fsub = bot_data.get("fsub_channel")
+    if fsub and clone_client:
+        try:
+            chat = await clone_client.get_chat(fsub)
+            cname = f"@{chat.username}" if chat.username else chat.title
+            checks.append(f"✅ FSub: {cname} — Accessible")
+        except Exception:
+            checks.append(f"❌ FSub: <code>{fsub}</code> — Access nahi hai!")
+    elif not fsub:
+        checks.append("ℹ️ FSub: Set nahi (optional)")
+    else:
+        checks.append("⚠️ FSub: Bot running nahi, check nahi hua")
+
+    # ── 4. Subscription ──────────────────────────────────────────────
+    try:
+        from database.subscription_db import get_subscription
+        import datetime
+        sub = await get_subscription(bot_id)
+        if sub and sub.get("is_active"):
+            expiry    = sub.get("expiry")
+            days_left = max(0, (expiry - datetime.datetime.now()).days) if expiry else 0
+            if days_left > 7:
+                checks.append(f"✅ Subscription: {days_left} din bache")
+            elif days_left > 0:
+                checks.append(f"⚠️ Subscription: Sirf {days_left} din! Renew karo")
+            else:
+                checks.append("❌ Subscription: Expire! @aschat_group contact karo")
+        else:
+            checks.append("❌ Subscription: Active nahi!")
+    except Exception:
+        checks.append("⚠️ Subscription: Check nahi hua")
+
+    # ── 5. Shortlink ──────────────────────────────────────────────────
+    url = bot_data.get("url")
+    api = bot_data.get("api")
+    if url and api:
+        checks.append(f"✅ Shortlink: {url}")
+    else:
+        checks.append("⚠️ Shortlink: Set nahi — clone bot mein /shortlink karo")
+
+    # ── Overall ───────────────────────────────────────────────────────
+    fails = sum(1 for c in checks if c.startswith("❌"))
+    warns = sum(1 for c in checks if c.startswith("⚠️"))
+
+    if fails == 0 and warns == 0:
+        overall = "✅ Sab theek hai!"
+    elif fails == 0:
+        overall = f"⚠️ {warns} warning(s)"
+    else:
+        overall = f"❌ {fails} issue(s) — fix karo"
+
+    text = (
+        f"<b>🔍 Health Check — @{bot_uname}</b>\n\n"
+        + "\n".join(checks) +
+        f"\n\n<b>Overall: {overall}</b>"
+    )
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Re-check", callback_data="manage_health_check")],
+            [
+                InlineKeyboardButton("📁 Channel Info", callback_data="manage_channel_stats"),
+                InlineKeyboardButton("⚙️ Settings", callback_data="manage_menu"),
+            ],
+        ]),
+        parse_mode=enums.ParseMode.HTML
     )
