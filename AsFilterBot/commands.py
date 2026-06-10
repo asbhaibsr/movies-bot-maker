@@ -296,30 +296,52 @@ async def start(client, message):
     else:
         reply_markup=None
     try:
-        me_data = await db.get_bot((await client.get_me()).id)
+        me_data  = await db.get_bot((await client.get_me()).id)
         protect  = me_data.get("protect_content", False)
         auto_del = me_data.get("auto_delete", 600)
-        from info import MAIN_MOVIE_CHANNEL
+        from info import PUBLIC_FILE_CHANNEL, MAIN_MOVIE_CHANNEL
         msg = None
+        pfc = PUBLIC_FILE_CHANNEL or MAIN_MOVIE_CHANNEL
 
-        # METHOD 1: copy_message from source channel — SABSE RELIABLE
-        ch_id  = files.get('channel_id') or MAIN_MOVIE_CHANNEL
-        msg_id_src = files.get('channel_msg_id')
-        if ch_id and msg_id_src:
+        # ── METHOD 1: PUBLIC_FILE_CHANNEL (works for ALL existing data) ──
+        # Main bot (temp.BOT) file_id se pfc mein post karta hai
+        # Clone bot wahan se copy karke user ko bhejta hai
+        if pfc and temp.BOT:
             try:
+                posted = await temp.BOT.send_cached_media(chat_id=pfc, file_id=file_id)
                 msg = await client.copy_message(
                     chat_id=message.from_user.id,
-                    from_chat_id=ch_id,
-                    message_id=msg_id_src,
+                    from_chat_id=pfc,
+                    message_id=posted.id,
                     caption=f_caption,
                     protect_content=protect,
                     reply_markup=reply_markup,
                     parse_mode=enums.ParseMode.HTML
                 )
-            except Exception as ce:
-                logger.warning(f"copy_message failed: {ce}")
+                try: await posted.delete()
+                except: pass
+            except Exception as e1:
+                logger.warning(f"pfc failed: {e1}")
 
-        # METHOD 2: userbot se channel search → message_id lo → copy karo
+        # ── METHOD 2: channel_msg_id se direct copy ──
+        if not msg:
+            ch_id     = files.get('channel_id') or MAIN_MOVIE_CHANNEL
+            ch_msg_id = files.get('channel_msg_id')
+            if ch_id and ch_msg_id:
+                try:
+                    msg = await client.copy_message(
+                        chat_id=message.from_user.id,
+                        from_chat_id=ch_id,
+                        message_id=ch_msg_id,
+                        caption=f_caption,
+                        protect_content=protect,
+                        reply_markup=reply_markup,
+                        parse_mode=enums.ParseMode.HTML
+                    )
+                except Exception as e2:
+                    logger.warning(f"copy_message(2) failed: {e2}")
+
+        # ── METHOD 3: userbot channel search ──
         if not msg and MAIN_MOVIE_CHANNEL:
             try:
                 from userbot import userbot as ub
@@ -336,13 +358,9 @@ async def start(client, message):
                                 reply_markup=reply_markup,
                                 parse_mode=enums.ParseMode.HTML
                             )
-                            # DB update with correct info for next time
-                            from database.ia_filterdb import col as fdb
-                            fdb.update_one({'file_id': file_id},
-                                {'$set': {'channel_id': MAIN_MOVIE_CHANNEL, 'channel_msg_id': umsg.id}})
                             break
-            except Exception as ue:
-                logger.warning(f"userbot fallback failed: {ue}")
+            except Exception as e3:
+                logger.warning(f"userbot(3) failed: {e3}")
 
         # METHOD 3: direct og_file_id try
         if not msg:
