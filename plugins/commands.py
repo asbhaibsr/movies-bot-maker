@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 UPDATE_CHANNEL = "https://t.me/asbhai_bsr"
 SUPPORT_GROUP  = "https://t.me/aschat_group"
 
+
+# ─── Helper: Check admin (env + DB dynamic admins) ──────────
+async def is_main_admin(user_id: int) -> bool:
+    """Env ADMINS ya DB dynamic admins mein check karo"""
+    if user_id in ADMINS:
+        return True
+    return await db.is_dynamic_admin(user_id)
+
+
 # ═══════════════════════════════════════════════
 #  /start  — Main welcome
 # ═══════════════════════════════════════════════
@@ -51,6 +60,10 @@ async def start_cmd(client, message: Message):
             InlineKeyboardButton("📢 Updates", url=UPDATE_CHANNEL),
         ],
     ]
+    # Admin ke liye extra Admin Panel button
+    if await is_main_admin(user.id):
+        buttons.append([InlineKeyboardButton("🔧 Admin Panel", callback_data="admin_panel_main")])
+
     text = (
         f"<b>👋 Assalam o Alaikum, {user.mention}!</b>\n\n"
         f"🤖 Main hoon <b>Create AutoFilter Bot</b> — aapka personal\n"
@@ -58,15 +71,14 @@ async def start_cmd(client, message: Message):
         f"📌 <b>Main kya kar sakta hoon?</b>\n"
         f"  ✅ Aapka apna Movie Bot banaunga\n"
         f"  ✅ Bot ka welcome message set karein\n"
-        f"  ✅ Photo + Custom buttons lagayein\n"
+        f"  ✅ Custom buttons lagayein\n"
         f"  ✅ Subscription manage karein\n\n"
         f"👇 Shuru karo neeche wale button se:"
     )
-    await message.reply(
-        text,
+    await message.reply_text(
+        text=text,
         reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode=enums.ParseMode.HTML,
-        disable_web_page_preview=True
+        parse_mode=enums.ParseMode.HTML
     )
 
 
@@ -135,6 +147,9 @@ async def go_home_cb(client, query: CallbackQuery):
             InlineKeyboardButton("📢 Updates", url=UPDATE_CHANNEL),
         ],
     ]
+    if await is_main_admin(user.id):
+        buttons.append([InlineKeyboardButton("🔧 Admin Panel", callback_data="admin_panel_main")])
+
     text = (
         f"<b>👋 Assalam o Alaikum, {user.mention}!</b>\n\n"
         f"🤖 Main hoon <b>Create AutoFilter Bot</b> — aapka personal\n"
@@ -142,7 +157,7 @@ async def go_home_cb(client, query: CallbackQuery):
         f"📌 <b>Main kya kar sakta hoon?</b>\n"
         f"  ✅ Aapka apna Movie Bot banaunga\n"
         f"  ✅ Bot ka welcome message set karein\n"
-        f"  ✅ Photo + Custom buttons lagayein\n"
+        f"  ✅ Custom buttons lagayein\n"
         f"  ✅ Subscription manage karein\n\n"
         f"👇 Shuru karo neeche wale button se:"
     )
@@ -153,10 +168,240 @@ async def go_home_cb(client, query: CallbackQuery):
             parse_mode=enums.ParseMode.HTML
         )
     except:
-        try:
-            await query.message.reply(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=enums.ParseMode.HTML)
-        except:
-            await query.answer()
+        await query.answer()
+
+
+# ═══════════════════════════════════════════════
+#  🔧 ADMIN PANEL — Main bot ka admin management
+# ═══════════════════════════════════════════════
+@Client.on_callback_query(filters.regex("^admin_panel_main$"))
+async def admin_panel_cb(client, query: CallbackQuery):
+    if not await is_main_admin(query.from_user.id):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+
+    total_users = await db.total_users_count()
+    total_bots  = await db.count_all_bots()
+    running     = len(getattr(temp, "BOTS", []))
+    dyn_admins  = await db.get_dynamic_admins()
+
+    text = (
+        "<b>🔧 Admin Panel</b>\n\n"
+        f"👥 Total Users: <code>{total_users}</code>\n"
+        f"🤖 Clone Bots (DB): <code>{total_bots}</code>\n"
+        f"▶️ Running Bots: <code>{running}</code>\n"
+        f"👑 Admins (Env): <code>{len(ADMINS)}</code>\n"
+        f"➕ Dynamic Admins: <code>{len(dyn_admins)}</code>\n\n"
+        "👇 Kya karna hai?"
+    )
+    btns = [
+        [InlineKeyboardButton("👑 Admin Management", callback_data="admin_mgmt_panel")],
+        [
+            InlineKeyboardButton("📋 Sub List", callback_data="admin_sublist_quick"),
+            InlineKeyboardButton("⚠️ Expiring", callback_data="admin_expiring_quick"),
+        ],
+        [InlineKeyboardButton("🔙 Back", callback_data="go_home")],
+    ]
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(btns),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+# ═══════════════════════════════════════════════
+#  👑 Admin Management Panel
+# ═══════════════════════════════════════════════
+@Client.on_callback_query(filters.regex("^admin_mgmt_panel$"))
+async def admin_mgmt_panel_cb(client, query: CallbackQuery):
+    if not await is_main_admin(query.from_user.id):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+
+    env_admins = ADMINS
+    dyn_docs   = await db.get_all_dynamic_admins_info()
+
+    lines = ["<b>👑 Admin Management</b>\n"]
+    lines.append(f"<b>🔒 Env Admins ({len(env_admins)}):</b>")
+    for aid in env_admins:
+        lines.append(f"  • <code>{aid}</code>")
+
+    if dyn_docs:
+        lines.append(f"\n<b>➕ Dynamic Admins ({len(dyn_docs)}):</b>")
+        for doc in dyn_docs:
+            uname = f"@{doc['username']}" if doc.get("username") else "No username"
+            lines.append(f"  • <code>{doc['user_id']}</code> — {uname}")
+    else:
+        lines.append("\n<i>Koi dynamic admin nahi abhi.</i>")
+
+    btns = [
+        [InlineKeyboardButton("➕ Admin Add Karo", callback_data="admin_add_new")],
+        [InlineKeyboardButton("➖ Admin Remove Karo", callback_data="admin_remove_one")],
+        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel_main")],
+    ]
+    await query.message.edit_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(btns),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+# ── Admin Add ──────────────────────────────────
+@Client.on_callback_query(filters.regex("^admin_add_new$"))
+async def admin_add_new_cb(client, query: CallbackQuery):
+    if not await is_main_admin(query.from_user.id):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+
+    # Sirf env admins hi new admin add kar sakte hain
+    if query.from_user.id not in ADMINS:
+        return await query.answer("❌ Ye permission sirf main admin ke paas hai!", show_alert=True)
+
+    await query.message.edit_text(
+        "<b>➕ Naya Admin Add Karo</b>\n\n"
+        "Us user ka <b>Telegram ID</b> bhejo jise admin banana hai.\n\n"
+        "<i>Tip: ID pata karne ke liye @userinfobot pe message karo</i>\n\n"
+        "👉 ID bhejo (sirf numbers):",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="admin_mgmt_panel")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+    try:
+        reply = await client.listen(query.from_user.id, timeout=60)
+    except asyncio.TimeoutError:
+        return
+
+    if not reply.text or not reply.text.strip().isdigit():
+        return await reply.reply("❌ Sirf numeric ID bhejo. Dobara try karo.")
+
+    new_admin_id = int(reply.text.strip())
+
+    if new_admin_id in ADMINS:
+        return await reply.reply(
+            f"<b>ℹ️ {new_admin_id} pehle se Env Admin hai!</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    # Try to get username
+    username = ""
+    try:
+        user_info = await client.get_users(new_admin_id)
+        username = user_info.username or ""
+    except:
+        pass
+
+    await db.add_dynamic_admin(new_admin_id, username)
+
+    uname_str = f"@{username}" if username else "No username"
+    await reply.reply(
+        f"<b>✅ Admin Add Ho Gaya!</b>\n\n"
+        f"🆔 ID: <code>{new_admin_id}</code>\n"
+        f"👤 Username: {uname_str}\n\n"
+        f"Ab ye user Admin Panel access kar sakta hai.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👑 Admin List Dekho", callback_data="admin_mgmt_panel")],
+            [InlineKeyboardButton("🏠 Home", callback_data="go_home")],
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+    try:
+        await client.send_message(
+            LOG_CHANNEL,
+            f"<b>➕ New Admin Added\nID: <code>{new_admin_id}</code>\nBy: {query.from_user.mention}</b>"
+        )
+    except:
+        pass
+
+
+# ── Admin Remove ──────────────────────────────
+@Client.on_callback_query(filters.regex("^admin_remove_one$"))
+async def admin_remove_cb(client, query: CallbackQuery):
+    if query.from_user.id not in ADMINS:
+        return await query.answer("❌ Sirf main Env Admin remove kar sakta hai!", show_alert=True)
+
+    dyn_docs = await db.get_all_dynamic_admins_info()
+    if not dyn_docs:
+        return await query.answer("Koi dynamic admin nahi hai remove karne ke liye.", show_alert=True)
+
+    lines = ["<b>➖ Admin Remove Karo</b>\n\nJis ka ID bhejo:"]
+    for doc in dyn_docs:
+        uname = f"@{doc['username']}" if doc.get("username") else ""
+        lines.append(f"• <code>{doc['user_id']}</code> {uname}")
+
+    await query.message.edit_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="admin_mgmt_panel")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+    try:
+        reply = await client.listen(query.from_user.id, timeout=60)
+    except asyncio.TimeoutError:
+        return
+
+    if not reply.text or not reply.text.strip().isdigit():
+        return await reply.reply("❌ Sirf numeric ID bhejo.")
+
+    remove_id = int(reply.text.strip())
+
+    if remove_id in ADMINS:
+        return await reply.reply(
+            "<b>❌ Env Admin ko yahan se remove nahi kar sakte!</b>\n"
+            "Env var se ID hatao.",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    removed = await db.remove_dynamic_admin(remove_id)
+    if removed:
+        await reply.reply(
+            f"<b>✅ Admin Remove Ho Gaya!</b>\n🆔 <code>{remove_id}</code>",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("👑 Admin List", callback_data="admin_mgmt_panel")],
+                [InlineKeyboardButton("🏠 Home", callback_data="go_home")],
+            ]),
+            parse_mode=enums.ParseMode.HTML
+        )
+    else:
+        await reply.reply(f"<b>❌ ID <code>{remove_id}</code> dynamic admins mein nahi mila.</b>", parse_mode=enums.ParseMode.HTML)
+
+
+# ── Quick subscription list from admin panel ──
+@Client.on_callback_query(filters.regex("^admin_sublist_quick$"))
+async def admin_sublist_quick_cb(client, query: CallbackQuery):
+    if not await is_main_admin(query.from_user.id):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+    from database.subscription_db import get_all_subscriptions
+    subs = await get_all_subscriptions()
+    if not subs:
+        return await query.answer("Koi subscription nahi.", show_alert=True)
+    now = datetime.datetime.now()
+    active_c = sum(1 for s in subs if s.get("is_active") and s.get("expiry") and now < s["expiry"])
+    await query.message.edit_text(
+        f"<b>📋 Subscriptions Summary</b>\n\n"
+        f"Total: <code>{len(subs)}</code>\n"
+        f"Active: <code>{active_c}</code>\n"
+        f"Expired: <code>{len(subs)-active_c}</code>\n\n"
+        f"<i>Full list ke liye /sublist use karo</i>",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel_main")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+@Client.on_callback_query(filters.regex("^admin_expiring_quick$"))
+async def admin_expiring_quick_cb(client, query: CallbackQuery):
+    if not await is_main_admin(query.from_user.id):
+        return await query.answer("❌ Sirf Admin!", show_alert=True)
+    from database.subscription_db import get_expiring_soon_subs
+    expiring = await get_expiring_soon_subs(days=7)
+    await query.message.edit_text(
+        f"<b>⚠️ Agle 7 din mein expire honge: {len(expiring)} bots</b>\n\n"
+        f"<i>Full list ke liye /expiringbots use karo</i>",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin_panel_main")]
+        ]),
+        parse_mode=enums.ParseMode.HTML
+    )
 
 
 # ═══════════════════════════════════════════════
@@ -169,7 +414,6 @@ async def createbot_cmd(client, message: Message):
 
 @Client.on_callback_query(filters.regex("^start_create$"))
 async def start_create_cb(client, query: CallbackQuery):
-    # Fake message object se process start karo
     await query.answer()
     await _start_createbot(client, query.message, user=query.from_user)
 
@@ -201,8 +445,8 @@ async def _start_createbot(client, message, user=None):
         "<b>3️⃣</b> Bot ka naam do (e.g. My Movie Bot)\n"
         "<b>4️⃣</b> Username do (e.g. mymovie_bot)\n"
         "<b>5️⃣</b> BotFather ka <b>confirmation message</b> yahan <b>forward</b> karo\n\n"
-        "<i>ya seedha token paste karo</i>\n\n"
-        "⏰ 5 minute mein jawab do, /cancel se cancel karo.",
+        "⏱️ 5 minute ka time hai. /cancel se rokein.\n\n"
+        "👇 BotFather ka message forward karo ya token paste karo:",
         parse_mode=enums.ParseMode.HTML
     )
 
@@ -237,7 +481,8 @@ async def _start_createbot(client, message, user=None):
 
     try:
         from info import API_ID, API_HASH
-        new_bot = Client(
+        from pyrogram import Client as PyroClient
+        new_bot = PyroClient(
             f"clone_{bot_token[:8]}",
             API_ID, API_HASH,
             bot_token=bot_token,
@@ -246,37 +491,37 @@ async def _start_createbot(client, message, user=None):
         await new_bot.start()
         bot_me = await new_bot.get_me()
 
-        # DB mein save karo
         await db.add_clone_bot(
             bot_id=bot_me.id,
             user_id=user.id,
             bot_token=bot_token,
             bot_username=bot_me.username or ""
         )
-        # Subscription create karo (30 day free trial)
         await create_subscription(bot_me.id, user.id, bot_me.username or "")
 
-        # temp.BOTS mein add karo
         if not hasattr(temp, "BOTS"):
             temp.BOTS = []
         temp.BOTS.append(new_bot)
 
         await wait_msg.edit_text(
-            f"<b>✅ Bot Successfully Bana Diya!</b>\n\n"
+            f"<b>🎉 Bot Successfully Bana!</b>\n\n"
             f"🤖 Bot: @{bot_me.username}\n"
-            f"🎁 Free Trial: <b>30 din</b>\n\n"
-            f"Ab /manage se apna bot customize karo!",
+            f"🆔 Bot ID: <code>{bot_me.id}</code>\n\n"
+            f"✅ 30 din ka free trial shuru ho gaya!\n\n"
+            f"<b>Ab kya karo:</b>\n"
+            f"1. Apne group mein @{bot_me.username} add karo\n"
+            f"2. /index se files index karo\n"
+            f"3. /manage se settings set karo",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("⚙️ Bot Manage Karo", callback_data="manage_menu")],
-                [InlineKeyboardButton("📋 Mere Bots", callback_data="my_bots")],
+                [InlineKeyboardButton("⚙️ Bot Settings", callback_data="manage_menu")],
+                [InlineKeyboardButton("🏠 Home", callback_data="go_home")],
             ]),
             parse_mode=enums.ParseMode.HTML
         )
-        # Log channel
         try:
             await client.send_message(
                 LOG_CHANNEL,
-                f"<b>🆕 Naya Clone Bot Bana!\n"
+                f"<b>🤖 New Clone Bot Created!\n"
                 f"Bot: @{bot_me.username} (<code>{bot_me.id}</code>)\n"
                 f"Owner: {user.mention} (<code>{user.id}</code>)</b>"
             )
@@ -284,68 +529,78 @@ async def _start_createbot(client, message, user=None):
             pass
 
     except Exception as e:
+        logger.error(f"Clone bot start error: {e}")
         await wait_msg.edit_text(
-            f"<b>❌ Error:</b>\n<code>{e}</code>\n\n"
-            f"Token check karo ya @aschat_group mein support lo.",
+            f"<b>❌ Bot start nahi hua!</b>\n\n"
+            f"Error: <code>{e}</code>\n\n"
+            f"Possible reasons:\n"
+            f"• Token galat hai\n"
+            f"• Bot already kisi aur ne use kar liya\n"
+            f"• Token expire ho gaya\n\n"
+            f"Dobara try karo: /createbot",
             parse_mode=enums.ParseMode.HTML
         )
 
 
 # ═══════════════════════════════════════════════
-#  /mybot  — User ke saare bots
+#  /mybot  — Mere bots
 # ═══════════════════════════════════════════════
 @Client.on_message(filters.command("mybot") & filters.private)
 @Client.on_callback_query(filters.regex("^my_bots$"))
 async def mybot_cmd(client, update):
     if isinstance(update, CallbackQuery):
         user_id = update.from_user.id
-        send = update.message.edit_text
     else:
         user_id = update.from_user.id
-        send = update.reply
 
-    bots = await get_owner_bots(user_id)
-    if not bots:
-        text = "<b>📭 Aapka koi bot nahi hai.</b>\n\n/createbot se banao!"
-        btns = [[InlineKeyboardButton("🤖 Bot Banao", callback_data="start_create")]]
+    clone = await db.get_clone(user_id)
+    if not clone:
+        txt = "<b>❌ Aapka koi bot nahi hai abhi.\n\n/createbot se naya banao!</b>"
         if isinstance(update, CallbackQuery):
             return await update.message.edit_text(
-                text,
-                reply_markup=InlineKeyboardMarkup(btns),
+                txt,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🤖 Bot Banao", callback_data="start_create")],
+                    [InlineKeyboardButton("🔙 Back", callback_data="go_home")],
+                ]),
                 parse_mode=enums.ParseMode.HTML
             )
-        return await update.reply(text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=enums.ParseMode.HTML)
+        return await update.reply(txt, parse_mode=enums.ParseMode.HTML)
 
-    lines = ["<b>📋 Aapke Bots:</b>\n"]
-    buttons = []
-    for i, sub in enumerate(bots, 1):
-        bot_uname = sub.get("bot_username", "Unknown")
-        expiry = sub.get("expiry")
-        active = sub.get("is_active", False)
-        is_free = sub.get("is_free", True)
+    from database.subscription_db import get_subscription
+    bot_id    = clone.get("bot_id")
+    bot_uname = clone.get("bot_username", "Unknown")
+    sub = await get_subscription(bot_id)
+
+    if sub:
+        expiry    = sub.get("expiry")
+        is_active_sub = sub.get("is_active", False)
         days_left = max(0, (expiry - datetime.datetime.now()).days) if expiry else 0
-        status = "✅ Active" if active and days_left > 0 else "❌ Expired"
-        plan_type = "🎁 Free Trial" if is_free else "💎 Paid"
-        lines.append(
-            f"<b>{i}.</b> @{bot_uname}\n"
-            f"   Status: {status} | {plan_type}\n"
-            f"   ⏳ {days_left} din bache\n"
-        )
-        buttons.append([
-            InlineKeyboardButton(f"⚙️ @{bot_uname}", callback_data=f"manage_bot_{bot_uname}")
-        ])
-
-    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="go_home")])
-
-    kwargs = {
-        "text": "\n".join(lines),
-        "reply_markup": InlineKeyboardMarkup(buttons),
-        "parse_mode": enums.ParseMode.HTML
-    }
-    if isinstance(update, CallbackQuery):
-        await update.message.edit_text(**kwargs)
+        exp_str   = expiry.strftime("%d %b %Y") if expiry else "?"
+        plan      = "Free Trial" if sub.get("is_free") else "Paid"
+        status    = "✅ Active" if is_active_sub and days_left > 0 else "❌ Expired"
+        sub_text  = f"📅 Expiry: {exp_str}\n⏳ {days_left} din bache\n💎 {plan} | {status}"
     else:
-        await update.reply(**kwargs)
+        sub_text = "⚠️ Subscription data nahi mila"
+
+    text = (
+        f"<b>📋 Aapka Bot</b>\n\n"
+        f"🤖 @{bot_uname}\n"
+        f"🆔 Bot ID: <code>{bot_id}</code>\n\n"
+        f"{sub_text}"
+    )
+    btns = [
+        [InlineKeyboardButton("⚙️ Settings", callback_data="manage_menu")],
+        [
+            InlineKeyboardButton("🗑️ Delete", callback_data="delbot_menu"),
+            InlineKeyboardButton("📊 Sub Status", callback_data="my_sub_status"),
+        ],
+        [InlineKeyboardButton("🔙 Back", callback_data="go_home")],
+    ]
+    if isinstance(update, CallbackQuery):
+        await update.message.edit_text(text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=enums.ParseMode.HTML)
+    else:
+        await update.reply(text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=enums.ParseMode.HTML)
 
 
 # ═══════════════════════════════════════════════
@@ -387,7 +642,7 @@ async def delbot_cmd(client, update):
 @Client.on_callback_query(filters.regex(r"^confirm_delbot_(\d+)$"))
 async def confirm_delbot_cb(client, query: CallbackQuery):
     user_id = int(query.matches[0].group(1))
-    if query.from_user.id != user_id and query.from_user.id not in ADMINS:
+    if query.from_user.id != user_id and not await is_main_admin(query.from_user.id):
         return await query.answer("❌ Ye aapka bot nahi hai!", show_alert=True)
 
     clone = await db.get_clone(user_id)
@@ -397,7 +652,6 @@ async def confirm_delbot_cb(client, query: CallbackQuery):
     bot_uname = clone.get("bot_username", "Unknown")
     bot_id = clone.get("bot_id")
 
-    # Running BOTS se stop karo
     if hasattr(temp, "BOTS"):
         for b in temp.BOTS:
             try:
@@ -441,7 +695,7 @@ async def manage_menu_cb(client, query: CallbackQuery):
     await _show_manage_menu(client, query.from_user.id, query=query)
 
 
-@Client.on_callback_query(filters.regex(r"^manage_bot_(.+)$"))
+@Client.on_callback_query(filters.regex(r"^manage_bot_.+$"))
 async def manage_bot_cb(client, query: CallbackQuery):
     await _show_manage_menu(client, query.from_user.id, query=query)
 
@@ -454,23 +708,20 @@ async def _show_manage_menu(client, user_id, message=None, query=None):
             return await query.message.edit_text(txt, parse_mode=enums.ParseMode.HTML)
         return await message.reply(txt, parse_mode=enums.ParseMode.HTML)
 
-    bot_uname = clone.get("bot_username", "Unknown")
-    start_msg = clone.get("start_message") or "Default (set nahi hai)"
+    bot_uname  = clone.get("bot_username", "Unknown")
     start_photo = "✅ Set" if clone.get("start_photo") else "❌ Set Nahi"
-    start_btns = len(clone.get("start_buttons") or [])
-    update_ch = clone.get("update_channel_link") or "❌ Set Nahi"
+    start_btns  = len(clone.get("start_buttons") or [])
+    update_ch   = clone.get("update_channel_link") or "❌ Set Nahi"
 
     text = (
         f"<b>⚙️ Bot Settings — @{bot_uname}</b>\n\n"
         f"📝 Welcome Msg: {'✅ Custom' if clone.get('start_message') else '❌ Default'}\n"
-        f"🖼️ Welcome Photo: {start_photo}\n"
         f"🔘 Custom Buttons: {start_btns} button\n"
         f"📢 Update Channel: {update_ch[:30] if update_ch != '❌ Set Nahi' else update_ch}\n\n"
         f"👇 Kya change karna hai?"
     )
     btns = [
         [InlineKeyboardButton("📝 Welcome Message", callback_data="set_start_msg")],
-        [InlineKeyboardButton("🖼️ Welcome Photo", callback_data="set_start_photo")],
         [InlineKeyboardButton("🔘 Manage Buttons", callback_data="manage_buttons")],
         [InlineKeyboardButton("📢 Update Channel", callback_data="set_update_ch")],
         [InlineKeyboardButton("📊 Subscription", callback_data="my_sub_status")],
@@ -485,7 +736,7 @@ async def _show_manage_menu(client, user_id, message=None, query=None):
         await message.reply(text, reply_markup=InlineKeyboardMarkup(btns), parse_mode=enums.ParseMode.HTML)
 
 
-# — Set Welcome Message —
+# ── Set Welcome Message ──────────────────────
 @Client.on_callback_query(filters.regex("^set_start_msg$"))
 async def set_start_msg_cb(client, query: CallbackQuery):
     user_id = query.from_user.id
@@ -496,8 +747,7 @@ async def set_start_msg_cb(client, query: CallbackQuery):
     await query.message.edit_text(
         "<b>📝 Welcome Message Set Karo</b>\n\n"
         "Apna custom welcome message bhejo.\n"
-        "<b>HTML tags use kar sakte ho</b> (bold, italic, code etc.)\n\n"
-        "Ye message tab dikhega jab koi user aapke bot ko /start karega.\n\n"
+        "<b>HTML tags use kar sakte ho</b> (bold, italic etc.)\n\n"
         "👉 Message bhejo ya /cancel karo:",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back", callback_data="manage_menu")]
@@ -515,8 +765,7 @@ async def set_start_msg_cb(client, query: CallbackQuery):
     new_msg = reply.text or reply.caption or ""
     await db.update_clone(user_id, {"start_message": new_msg})
     await reply.reply(
-        "<b>✅ Welcome message set ho gaya!</b>\n\n"
-        "Ab /start karte waqt ye message dikhega.",
+        "<b>✅ Welcome message set ho gaya!</b>",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back to Settings", callback_data="manage_menu")]
         ]),
@@ -524,54 +773,7 @@ async def set_start_msg_cb(client, query: CallbackQuery):
     )
 
 
-# — Set Welcome Photo —
-@Client.on_callback_query(filters.regex("^set_start_photo$"))
-async def set_start_photo_cb(client, query: CallbackQuery):
-    user_id = query.from_user.id
-    clone = await db.get_clone(user_id)
-    if not clone:
-        return await query.answer("Pehle bot banao!", show_alert=True)
-
-    await query.message.edit_text(
-        "<b>🖼️ Welcome Photo Set Karo</b>\n\n"
-        "Koi bhi <b>JPG photo link</b> bhejo.\n"
-        "Example: <code>https://telegra.ph/file/abc.jpg</code>\n\n"
-        "Ya photo seedha send karo.\n\n"
-        "👉 Photo/Link bhejo ya /cancel karo:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back", callback_data="manage_menu")]
-        ]),
-        parse_mode=enums.ParseMode.HTML
-    )
-    try:
-        reply = await client.listen(user_id, timeout=120)
-    except asyncio.TimeoutError:
-        return
-
-    if reply.text and reply.text.strip() in ["/cancel", "/manage"]:
-        return await reply.reply("❌ Cancel.")
-
-    photo_url = None
-    if reply.photo:
-        photo_url = reply.photo.file_id
-    elif reply.text:
-        url = reply.text.strip()
-        if url.startswith("http") and (url.endswith(".jpg") or url.endswith(".jpeg") or url.endswith(".png") or "telegra.ph" in url):
-            photo_url = url
-        else:
-            return await reply.reply("❌ Sahi JPG link bhejo ya photo send karo.")
-
-    await db.update_clone(user_id, {"start_photo": photo_url})
-    await reply.reply(
-        "<b>✅ Welcome photo set ho gaya!</b>",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Settings", callback_data="manage_menu")]
-        ]),
-        parse_mode=enums.ParseMode.HTML
-    )
-
-
-# — Manage Buttons —
+# ── Manage Buttons ──────────────────────────
 @Client.on_callback_query(filters.regex("^manage_buttons$"))
 async def manage_buttons_cb(client, query: CallbackQuery):
     user_id = query.from_user.id
@@ -657,7 +859,7 @@ async def clear_buttons_cb(client, query: CallbackQuery):
     await manage_buttons_cb(client, query)
 
 
-# — Set Update Channel —
+# ── Set Update Channel ──────────────────────
 @Client.on_callback_query(filters.regex("^set_update_ch$"))
 async def set_update_ch_cb(client, query: CallbackQuery):
     user_id = query.from_user.id
@@ -697,7 +899,7 @@ async def set_update_ch_cb(client, query: CallbackQuery):
     )
 
 
-# — Subscription Status —
+# ── Subscription Status ──────────────────────
 @Client.on_callback_query(filters.regex("^my_sub_status$"))
 async def my_sub_status_cb(client, query: CallbackQuery):
     user_id = query.from_user.id
@@ -714,11 +916,11 @@ async def my_sub_status_cb(client, query: CallbackQuery):
             parse_mode=enums.ParseMode.HTML
         )
 
-    expiry  = sub.get("expiry")
-    active  = sub.get("is_active", False)
-    is_free = sub.get("is_free", True)
+    expiry    = sub.get("expiry")
+    active    = sub.get("is_active", False)
+    is_free   = sub.get("is_free", True)
     days_left = max(0, (expiry - datetime.datetime.now()).days) if expiry else 0
-    exp_str = expiry.strftime("%d %b %Y") if expiry else "?"
+    exp_str   = expiry.strftime("%d %b %Y") if expiry else "?"
     bot_uname = sub.get("bot_username", "?")
 
     text = (
@@ -738,6 +940,7 @@ async def my_sub_status_cb(client, query: CallbackQuery):
         ]),
         parse_mode=enums.ParseMode.HTML
     )
+
 
 @Client.on_callback_query(filters.regex("^main_copyright$"))
 async def main_copyright_cb(client, query):
