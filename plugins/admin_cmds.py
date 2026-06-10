@@ -275,3 +275,123 @@ async def logs_cmd(client, message: Message):
                 f"<i>Log file nahi mili. Console logs dekhne ke liye hosting platform use karo.</i>",
                 parse_mode=enums.ParseMode.HTML
             )
+
+
+# ═══════════════════════════════════════════════
+#  Admin Management Commands (Dynamic Admins)
+# ═══════════════════════════════════════════════
+
+@Client.on_message(filters.command("adminslist") & filters.user(ADMINS))
+async def adminslist_cmd(client, message: Message):
+    """Saare admins ki list — env + dynamic"""
+    env_admins = ADMINS
+    dyn_docs = await db.get_all_dynamic_admins_info()
+
+    lines = ["<b>👑 Admins List</b>\n"]
+    lines.append(f"<b>🔒 Env Admins ({len(env_admins)}):</b>")
+    for aid in env_admins:
+        try:
+            u = await client.get_users(aid)
+            uname = f"@{u.username}" if u.username else u.first_name
+        except:
+            uname = "Unknown"
+        lines.append(f"  • <code>{aid}</code> — {uname}")
+
+    if dyn_docs:
+        lines.append(f"\n<b>➕ Dynamic Admins ({len(dyn_docs)}):</b>")
+        for doc in dyn_docs:
+            uname = f"@{doc['username']}" if doc.get("username") else "No username"
+            lines.append(f"  • <code>{doc['user_id']}</code> — {uname}")
+    else:
+        lines.append("\n<i>Koi dynamic admin nahi.</i>")
+
+    await message.reply(
+        "\n".join(lines),
+        parse_mode=enums.ParseMode.HTML
+    )
+
+
+@Client.on_message(filters.command("addadmin") & filters.user(ADMINS))
+async def addadmin_cmd(client, message: Message):
+    """Dynamic admin add karo — /addadmin user_id"""
+    args = message.command
+    if len(args) < 2:
+        return await message.reply(
+            "<b>Usage:</b> <code>/addadmin user_id</code>\n\n"
+            "Example: <code>/addadmin 123456789</code>",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    try:
+        new_id = int(args[1])
+    except ValueError:
+        return await message.reply("❌ Sirf numeric ID bhejo.")
+
+    if new_id in ADMINS:
+        return await message.reply(
+            f"<b>ℹ️ {new_id} pehle se Env Admin hai!</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    username = ""
+    name_str = f"<code>{new_id}</code>"
+    try:
+        u = await client.get_users(new_id)
+        username = u.username or ""
+        name_str = u.mention
+    except:
+        pass
+
+    await db.add_dynamic_admin(new_id, username)
+
+    await message.reply(
+        f"<b>✅ Admin Add Ho Gaya!</b>\n\n"
+        f"👤 User: {name_str}\n"
+        f"🆔 ID: <code>{new_id}</code>\n\n"
+        f"Ab ye user Admin Panel access kar sakta hai.",
+        parse_mode=enums.ParseMode.HTML
+    )
+    try:
+        await client.send_message(
+            LOG_CHANNEL,
+            f"<b>➕ Admin Added\nID: <code>{new_id}</code>\nBy: {message.from_user.mention}</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except:
+        pass
+
+
+@Client.on_message(filters.command("removeadmin") & filters.user(ADMINS))
+async def removeadmin_cmd(client, message: Message):
+    """Dynamic admin remove karo — /removeadmin user_id"""
+    args = message.command
+    if len(args) < 2:
+        return await message.reply(
+            "<b>Usage:</b> <code>/removeadmin user_id</code>\n\n"
+            "Example: <code>/removeadmin 123456789</code>",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    try:
+        rem_id = int(args[1])
+    except ValueError:
+        return await message.reply("❌ Sirf numeric ID bhejo.")
+
+    if rem_id in ADMINS:
+        return await message.reply(
+            "<b>❌ Env Admin ko yahan se remove nahi kar sakte!</b>\n\n"
+            "Env var (ADMINS) se directly ID hatao.",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    removed = await db.remove_dynamic_admin(rem_id)
+    if removed:
+        await message.reply(
+            f"<b>✅ Admin Remove Ho Gaya!</b>\n🆔 <code>{rem_id}</code>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    else:
+        await message.reply(
+            f"<b>❌ ID <code>{rem_id}</code> dynamic admins mein nahi mila.</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
