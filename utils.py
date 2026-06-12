@@ -1009,4 +1009,3 @@ async def get_seconds(time_string):
         return value * 86400 * 365
     else:
         return 0
-
